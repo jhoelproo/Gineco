@@ -35,13 +35,16 @@ La última respuesta explícita de alergias de la misma afiliada puede reutiliza
 
 ## Conectar Admisión y el consultorio
 
-En Admisión se usa SIGEH y en el consultorio se usa Gineco. Copia la carpeta publicada completa de cada aplicación en su PC. Copia también el script `supabase/Registrar-Estacion.ps1`. El proyecto de enlace en Supabase se llama **Ginecología**.
+En Admisión se usa SIGEH y en el consultorio se usa Gineco. Instala los archivos de programa de la beta en cada puesto y conserva su carpeta de datos. En una instalación portable de SIGEH, los datos se guardan en `_internal/data` salvo que el puesto tenga configurada otra ruta.
 
-1. Desde la cuenta de Windows que abre SIGEH en Admisión, ejecuta `.\Registrar-Estacion.ps1 -Funcion admision` en PowerShell.
-2. Desde la cuenta de Windows compartida por los médicos en la PC del consultorio, ejecuta `.\Registrar-Estacion.ps1 -Funcion consulta`. Cada médico puede iniciar sesión con su propio usuario de Gineco.
-3. Como administrador del proyecto **Ginecología**, ejecuta en el SQL Editor la línea que imprime cada estación. La línea contiene la huella de su credencial. La credencial permanece en el perfil de Windows. Cierra la sesión de Windows y vuelve a entrar para que las aplicaciones reciban la configuración.
-4. En el consultorio, selecciona la impresora física como predeterminada de Windows. Abre Gineco, inicia sesión y comprueba que aparece **Admisión conectada**. Haz el primer envío con una ficha de demostración y confirma que sale una hoja en esa impresora.
+1. En la PC de Admisión, extrae la carpeta privada `Vinculo-Gineco-admision` y abre **Vincular-Estacion.cmd** con la cuenta de Windows que usa SIGEH.
+2. En la PC del consultorio, repite con `Vinculo-Gineco-consulta` y la cuenta de Windows que abre Gineco. Cada médico inicia sesión con su propio usuario de Gineco.
+3. Cierra y vuelve a abrir las aplicaciones. En el consultorio debe aparecer **Admisión conectada**. Selecciona la impresora predeterminada de Windows y prueba una derivación de demostración.
 
-Cuando Admisión confirma una visita de Ginecología, SIGEH la registra y la deja disponible para facturación. Si se interrumpe la conexión, conserva el envío para reintentarlo. En el consultorio, Gineco consulta las novedades cada cinco segundos y muestra un aviso con sonido. Todos los médicos de esa estación comparten la bandeja local.
+Cuando Admisión confirma una visita de Ginecología, SIGEH guarda la derivación y deja el registro disponible para facturación. Si a Admisión le falta el vínculo o la conexión, la visita permanece en su cola local hasta que pueda enviarla. Si el consultorio está desconectado, recibe las visitas al reconectarse. Gineco consulta las novedades cada cinco segundos y muestra un aviso con sonido. El médico escribe el motivo en la historia.
 
 **Pendiente** (amarillo) indica que aún no se ha abierto la historia. **En atención** (azul) indica que ya se abrió. **Enviada a impresión** (verde) indica que Windows aceptó el trabajo en la cola de impresión. La historia se guarda en la PC del consultorio y se puede reimprimir a partir de los datos guardados. La integración está preparada para un consultorio receptor compartido. La recepción se confirma después de guardar la visita en esa estación.
+
+### Preparar un vínculo como administrador
+
+Desde una cuenta de Windows que ya tenga configurado ese rol, ejecuta `./supabase/Vincular-Estacion.ps1 -Funcion admision -ExportarA <carpeta-privada>`. Para el consultorio usa `-Funcion consulta`. Pasa cada carpeta completa solo al puesto correspondiente. El archivo de vínculo contiene la credencial de esa función. Para registrar una credencial nueva, usa `supabase/Registrar-Estacion.ps1` y ejecuta la sentencia de huella que devuelve en el SQL Editor del proyecto **Ginecología**.

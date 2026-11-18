@@ -9,6 +9,7 @@ __pycache__/
 supabase/.temp/
 .env
 .env.*
+Vinculo-Gineco-*
 *.db
 *.db-shm
 *.db-wal

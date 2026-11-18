@@ -5,8 +5,12 @@ namespace Gineco;
 
 internal sealed class EnlaceAdmision(HttpClient cliente)
 {
-    internal static HttpClient? DesdeEstacion() => CrearCliente(Environment.GetEnvironmentVariable("GINECO_PROYECTO"),
-        Environment.GetEnvironmentVariable("GINECO_CLAVE_PUBLICA"), Environment.GetEnvironmentVariable("GINECO_TOKEN_CONSULTA"));
+    internal static HttpClient? DesdeEstacion() => CrearCliente(LeerConfiguracion("GINECO_PROYECTO"),
+        LeerConfiguracion("GINECO_CLAVE_PUBLICA"), LeerConfiguracion("GINECO_TOKEN_CONSULTA"));
+
+    private static string? LeerConfiguracion(string nombre) =>
+        Environment.GetEnvironmentVariable(nombre, EnvironmentVariableTarget.User) ??
+        Environment.GetEnvironmentVariable(nombre);
 
     internal static HttpClient? CrearCliente(string? proyecto, string? publica, string? estacion)
     {

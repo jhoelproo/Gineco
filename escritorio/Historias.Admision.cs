@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Drawing.Printing;
 using System.Media;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
@@ -59,6 +60,10 @@ internal sealed partial class Historias
                 Avisar(n);
             }, cierre.Token);
             if (!IsDisposed) conexion.Text = "Admisión conectada";
+        }
+        catch (HttpRequestException error) when (error.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            if (!IsDisposed) conexion.Text = "Admisión requiere vincular esta PC de consulta";
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException
             or InvalidDataException or SqliteException or IOException)

@@ -294,7 +294,7 @@ internal sealed partial class Historias : Form
         public string Nombre => Atencion?.Nombre ?? Admision!.Nombre;
         public string Cedula => Atencion?.Valor("cedula") ?? Admision!.Cedula;
         public string Fecha => (Admision?.Llegada ?? Atencion!.Fecha).ToString("dd/MM/yyyy HH:mm");
-        public string Visita => Admision is null ? "" : $"#{Admision.Visita}  {Admision.Prioridad}";
+        public string Visita => Admision is null ? "" : $"#{Admision.Visita}";
         public string Estado => Admision?.Estado ?? (Atencion!.Finalizada ? "Finalizada" : "Borrador");
     }
 

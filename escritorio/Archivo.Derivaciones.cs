@@ -2,9 +2,9 @@ using System.Text.Json;
 
 namespace Gineco;
 
-internal sealed record Derivacion(Guid Id, long Visita, DateTime Llegada, string Prioridad, Dictionary<string, string> Campos);
+internal sealed record Derivacion(Guid Id, long Visita, DateTime Llegada, Dictionary<string, string> Campos);
 
-internal sealed record FilaAdmision(Guid Id, long Visita, DateTime Llegada, string Nombre, string Cedula, string Prioridad, long? Historia, bool Impresa)
+internal sealed record FilaAdmision(Guid Id, long Visita, DateTime Llegada, string Nombre, string Cedula, long? Historia, bool Impresa)
 {
     public string Estado => Impresa ? "Enviada a impresión" : Historia.HasValue ? "En atención" : "Pendiente";
 }
@@ -32,10 +32,10 @@ internal sealed partial class Archivo
                 string.IsNullOrWhiteSpace(fila.Campos?.GetValueOrDefault("nombre")))
                 throw new InvalidDataException("La derivación está incompleta.");
             using var orden = Comando("""
-                INSERT INTO derivacion(id,visita,llegada,prioridad,campos) VALUES($id,$visita,$fecha,$prioridad,$campos)
+                INSERT INTO derivacion(id,visita,llegada,prioridad,campos) VALUES($id,$visita,$fecha,'',$campos)
                 ON CONFLICT(id) DO NOTHING
                 """, tx, ("$id", fila.Id.ToString()), ("$visita", fila.Visita), ("$fecha", fila.Llegada),
-                ("$prioridad", fila.Prioridad), ("$campos", JsonSerializer.Serialize(fila.Campos)));
+                ("$campos", JsonSerializer.Serialize(DatosAdmision(fila.Campos))));
             nuevas += orden.ExecuteNonQuery();
         }
         tx.Commit();
@@ -45,7 +45,7 @@ internal sealed partial class Archivo
     internal List<FilaAdmision> Bandeja()
     {
         using var orden = Comando("""
-            SELECT d.id,d.visita,d.llegada,coalesce(a.campos,d.campos),d.prioridad,d.historia,
+            SELECT d.id,d.visita,d.llegada,coalesce(a.campos,d.campos),d.historia,
                    coalesce(d.version_impresa=a.version,0) AS impresa
             FROM derivacion d LEFT JOIN atencion a ON a.id=d.historia
             ORDER BY impresa ASC,d.llegada DESC,d.visita DESC
@@ -56,7 +56,7 @@ internal sealed partial class Archivo
         {
             var campos = JsonSerializer.Deserialize<Dictionary<string, string>>(filas.GetString(3))!;
             bandeja.Add(new(Guid.Parse(filas.GetString(0)), filas.GetInt64(1), filas.GetDateTime(2), campos["nombre"], campos.GetValueOrDefault("cedula", ""),
-                filas.GetString(4), filas.IsDBNull(5) ? null : filas.GetInt64(5), filas.GetBoolean(6)));
+                filas.IsDBNull(4) ? null : filas.GetInt64(4), filas.GetBoolean(5)));
         }
         return bandeja;
     }
@@ -74,6 +74,7 @@ internal sealed partial class Archivo
             {
                 var llegada = fila.GetDateTime(1);
                 var campos = JsonSerializer.Deserialize<Dictionary<string, string>>(fila.GetString(2))!;
+                campos = DatosAdmision(campos);
                 campos["origen"] = OpcionesClinicas.Maternidad;
                 fila.Close();
                 historia = Insertar(usuario, new(0, usuario, llegada, campos), tx);
@@ -84,6 +85,14 @@ internal sealed partial class Archivo
         }
         tx.Commit();
         return Listar(usuario).Single(a => a.Id == historia);
+    }
+
+    private static Dictionary<string, string> DatosAdmision(Dictionary<string, string> datos)
+    {
+        var campos = new Dictionary<string, string>(datos);
+        campos.Remove("motivo");
+        campos.Remove("prioridad");
+        return campos;
     }
 
     internal void RegistrarImpresion(Atencion historia)

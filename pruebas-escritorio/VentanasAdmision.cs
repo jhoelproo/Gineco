@@ -21,7 +21,7 @@ public sealed partial class Ventanas
     }
 
     private static Derivacion Ficticia(long numero) => new(Guid.NewGuid(), numero, new DateTime(2026, 1, 1).AddMinutes(numero),
-        "", new() { ["nombre"] = $"Paciente {numero}", ["cedula"] = "00100000011" });
+        new() { ["nombre"] = $"Paciente {numero}", ["cedula"] = "00100000011" });
 
     private static void EsperarHasta(Func<bool> condicion)
     {
@@ -75,6 +75,10 @@ public sealed partial class Ventanas
             EsperarHasta(() => intento.IsCompleted);
             Assert.True(TieneTexto("Admisión sin conexión · Reintentando"));
             Assert.Equal(3, archivo.Bandeja().Count);
+            transporte.Estado = HttpStatusCode.Unauthorized;
+            var sinVinculo = ventana.Recibir();
+            EsperarHasta(() => sinVinculo.IsCompleted);
+            Assert.True(TieneTexto("Admisión requiere vincular esta PC de consulta"));
             ventana.Close();
         });
     }

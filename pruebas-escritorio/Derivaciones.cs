@@ -11,7 +11,23 @@ public sealed class Derivaciones
     private static readonly Medico Ana = new("01", "Médica A", false);
     private static readonly Medico Eva = new("02", "Médica B", false);
     private static Derivacion Nueva() => new(Guid.NewGuid(), 15, new(2026, 1, 1, 12, 0, 0),
-        "Prioritaria", new() { ["nombre"] = "Paciente ficticia", ["motivo"] = "Motivo de prueba" });
+        new() { ["nombre"] = "Paciente ficticia" });
+
+    [Fact]
+    public void LaDerivacionAnteriorNoCompletaElMotivoDelMedico()
+    {
+        using var archivo = new Archivo(":memory:");
+        var antigua = Nueva();
+        antigua.Campos["motivo"] = "Motivo ingresado en Admisión";
+        antigua.Campos["prioridad"] = "Alta";
+        archivo.Recibir([antigua]);
+        var historia = archivo.AbrirDerivacion(antigua.Id, Ana);
+        Assert.Equal("", historia.Valor("motivo"));
+        Assert.DoesNotContain("prioridad", historia.Campos.Keys);
+        historia.Campos["motivo"] = "Motivo registrado por la médica";
+        archivo.Guardar(Ana, historia, historia, "");
+        Assert.Equal("Motivo registrado por la médica", archivo.AbrirDerivacion(antigua.Id, Ana).Valor("motivo"));
+    }
 
     [Fact]
     public void LoteInvalidoRevierteYReintentoConservaUnaAtencion()
