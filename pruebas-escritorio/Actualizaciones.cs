@@ -1,4 +1,3 @@
-using System.Text;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Velopack;
@@ -9,58 +8,13 @@ using Xunit;
 
 namespace Gineco.Pruebas;
 
-public sealed class CredencialesDeActualizacion
-{
-    [Fact]
-    public void GuardaParaElUsuarioYPermiteReemplazarElAcceso()
-    {
-        var carpeta = Directory.CreateTempSubdirectory();
-        try
-        {
-            var credencial = new CredencialActualizaciones(carpeta.FullName);
-            Assert.False(credencial.Existe);
-            Assert.Throws<FileNotFoundException>(() => credencial.Leer());
-            string token = "github_pat_" + new string('x', 20);
-            credencial.Guardar(" " + token + " ");
-            Assert.True(credencial.Existe);
-            var archivo = Assert.Single(carpeta.GetFiles());
-            Assert.DoesNotContain(token, Encoding.UTF8.GetString(File.ReadAllBytes(archivo.FullName)));
-            Assert.Equal(token, new CredencialActualizaciones(carpeta.FullName).Leer());
-            Assert.Throws<ArgumentException>(() => credencial.Guardar(token + "!"));
-            Assert.Equal(token, credencial.Leer());
-            string actualizado = token + "y";
-            credencial.Guardar(actualizado);
-            Assert.Equal(actualizado, credencial.Leer());
-            Assert.Single(carpeta.GetFiles());
-        }
-        finally { carpeta.Delete(recursive: true); }
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("ghp_abcd")]
-    [InlineData("github_pat_short")]
-    [InlineData("github_pat_abcdefghijklmnopq!tuvwxyz")]
-    public void RechazaAccesosInvalidos(string token)
-    {
-        var carpeta = Directory.CreateTempSubdirectory();
-        try
-        {
-            var credencial = new CredencialActualizaciones(carpeta.FullName);
-            Assert.Throws<ArgumentException>(() => credencial.Guardar(token));
-            Assert.Empty(carpeta.GetFiles());
-        }
-        finally { carpeta.Delete(); }
-    }
-}
-
 public sealed class PaquetesDeActualizacion
 {
     [Fact]
     public void ElEjecutableDeDesarrolloInformaSuVersionSinConfundirlaConUnaInstalacion()
     {
         VelopackApp.Build().SetAutoApplyOnStartup(false).Run();
-        var servicio = new Actualizaciones(Path.GetTempPath());
+        var servicio = new Actualizaciones();
         Assert.False(servicio.Instalada);
         Assert.True(Version.TryParse(servicio.Version.Split('-')[0], out _));
         Assert.DoesNotContain('+', servicio.Version);
@@ -75,12 +29,9 @@ public sealed class PaquetesDeActualizacion
             var origen = carpeta.CreateSubdirectory("release");
             var paquetes = carpeta.CreateSubdirectory("paquetes");
             var locator = new TestVelopackLocator("GinecoQA", "0.1.0-beta.3", paquetes.FullName);
-            var servicio = new Actualizaciones(carpeta.FullName, _ => new UpdateManager(new SimpleFileSource(origen), locator: locator));
+            var servicio = new Actualizaciones(() => new UpdateManager(new SimpleFileSource(origen), locator: locator));
             Assert.True(servicio.Instalada);
-            Assert.False(servicio.Configurada);
             Assert.Throws<InvalidOperationException>(servicio.AplicarAlCerrar);
-            servicio.GuardarAcceso("github_pat_" + new string('x', 20));
-            Assert.True(servicio.Configurada);
 
             string rutaFeed = Path.Combine(origen.FullName, "releases.win.json");
             File.WriteAllText(rutaFeed, """{"Assets":[]}""");
@@ -106,8 +57,6 @@ public sealed class PaquetesDeActualizacion
             await File.WriteAllBytesAsync(rutaPaquete, new byte[16]);
             await Assert.ThrowsAsync<ChecksumFailedException>(() => servicio.Descargar(_ => { }, default));
             Assert.False(File.Exists(Path.Combine(paquetes.FullName, nombre)));
-            servicio.GuardarAcceso("github_pat_" + new string('y', 20));
-            Assert.Null(servicio.Disponible);
         }
         finally { carpeta.Delete(recursive: true); }
     }
@@ -135,7 +84,7 @@ public sealed partial class Ventanas
         await EnVentana(() =>
         {
             var actualizaciones = new ActualizacionesDePrueba { FallaDescarga = true };
-            using var ventana = new VentanaActualizaciones(actualizaciones, administrador: false);
+            using var ventana = new VentanaActualizaciones(actualizaciones);
             ventana.Show();
             Button Boton(string texto) => Descendientes(ventana).OfType<Button>().Single(b => b.Text == texto);
             var instalar = Boton("Instalar y reiniciar");
@@ -160,11 +109,11 @@ public sealed partial class Ventanas
     {
         await EnVentana(() =>
         {
-            var actualizaciones = new ActualizacionesDePrueba { Instalada = false, Configurada = false };
+            var actualizaciones = new ActualizacionesDePrueba { Instalada = false };
             using var archivo = new Archivo(":memory:");
             using var bandeja = new Historias(archivo, new("01", "Médica de prueba", false), actualizaciones: actualizaciones);
             bandeja.Show();
-            using var ventana = new VentanaActualizaciones(actualizaciones, administrador: true);
+            using var ventana = new VentanaActualizaciones(actualizaciones);
             ventana.Show();
             var botones = Descendientes(ventana).OfType<Button>().ToList();
             Assert.False(botones.Single(b => b.Text == "Buscar ahora").Enabled);
@@ -203,32 +152,17 @@ public sealed partial class Ventanas
     }
 
     [Fact]
-    public async Task ElAdministradorPuedeCorregirElAccesoYVolverABuscar()
+    public async Task PermiteRepetirLaConsultaSinTokenDespuesDeUnFallo()
     {
         await EnVentana(() =>
         {
-            var actualizaciones = new ActualizacionesDePrueba { Configurada = false, FallaConsulta = true };
-            using var ventana = new VentanaActualizaciones(actualizaciones, administrador: true);
+            var actualizaciones = new ActualizacionesDePrueba { FallaConsulta = true };
+            using var ventana = new VentanaActualizaciones(actualizaciones);
             ventana.Show();
-            var token = Assert.Single(Descendientes(ventana).OfType<TextBox>());
-            Assert.True(token.UseSystemPasswordChar);
-            var guardar = Descendientes(ventana).OfType<Button>().Single(b => b.Text == "Guardar acceso");
+            Assert.Empty(Descendientes(ventana).OfType<TextBox>());
             var buscar = Descendientes(ventana).OfType<Button>().Single(b => b.Text == "Buscar ahora");
-            Assert.False(buscar.Enabled);
-
-            guardar.PerformClick();
-            Assert.Contains(Descendientes(ventana).OfType<Label>(), l => l.Text == "Token inválido");
-            Assert.Equal(0, actualizaciones.Consultas);
-
-            token.Text = "token-de-prueba";
-            actualizaciones.FallaGuardar = true;
-            guardar.PerformClick();
-            Assert.Contains(Descendientes(ventana).OfType<Label>(), l => l.Text.StartsWith("Windows no pudo guardar"));
-
-            actualizaciones.FallaGuardar = false;
-            guardar.PerformClick();
+            buscar.PerformClick();
             EsperarHasta(() => buscar.Enabled);
-            Assert.Empty(token.Text);
             Assert.Contains(Descendientes(ventana).OfType<Label>(), l => l.Text.StartsWith("No se pudo consultar"));
             actualizaciones.FallaConsulta = false;
             actualizaciones.HayNovedad = false;
@@ -244,7 +178,7 @@ public sealed partial class Ventanas
         {
             var descarga = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var actualizaciones = new ActualizacionesDePrueba { DescargaControlada = descarga };
-            using var ventana = new VentanaActualizaciones(actualizaciones, administrador: false);
+            using var ventana = new VentanaActualizaciones(actualizaciones);
             ventana.Show();
             var botones = Descendientes(ventana).OfType<Button>().ToList();
             botones.Single(b => b.Text == "Buscar ahora").PerformClick();
@@ -263,23 +197,15 @@ public sealed partial class Ventanas
     {
         public string Version => "0.1.0-beta.3";
         public bool Instalada { get; init; } = true;
-        public bool Configurada { get; set; } = true;
         public string? Disponible { get; private set; }
         public int Consultas { get; private set; }
         public int Descargas { get; private set; }
         public bool FallaDescarga { get; set; }
         public bool FallaConsulta { get; set; }
-        public bool FallaGuardar { get; set; }
         public bool HayNovedad { get; set; } = true;
         public TaskCompletionSource? DescargaControlada { get; init; }
         public CancellationToken Cancelacion { get; private set; }
         public bool Aplicada { get; private set; }
-        public void GuardarAcceso(string token)
-        {
-            if (string.IsNullOrEmpty(token)) throw new ArgumentException("Token inválido");
-            if (FallaGuardar) throw new IOException();
-            Configurada = true;
-        }
         public Task Buscar()
         {
             Consultas++;

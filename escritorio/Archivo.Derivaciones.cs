@@ -4,9 +4,17 @@ namespace Gineco;
 
 internal sealed record Derivacion(Guid Id, long Visita, DateTime Llegada, Dictionary<string, string> Campos);
 
-internal sealed record FilaAdmision(Guid Id, long Visita, DateTime Llegada, string Nombre, string Cedula, long? Historia, bool Impresa)
+internal sealed record FilaAdmision(Guid Id, long Visita, DateTime Llegada, string Nombre, string Cedula, long? Historia, EstadoConsulta Situacion)
 {
-    public string Estado => Impresa ? "Enviada a impresión" : Historia.HasValue ? "En atención" : "Pendiente";
+    public bool Impresa => Situacion == EstadoConsulta.Impresa;
+    public bool SoloRemota => !Historia.HasValue && Situacion != EstadoConsulta.Pendiente;
+    public string Estado => Situacion switch
+    {
+        EstadoConsulta.Impresa => "Enviada a impresión",
+        EstadoConsulta.Finalizada => "Finalizada",
+        EstadoConsulta.EnAtencion => "En atención",
+        _ => "Pendiente"
+    };
 }
 
 internal sealed partial class Archivo
@@ -45,18 +53,28 @@ internal sealed partial class Archivo
     internal List<FilaAdmision> Bandeja()
     {
         using var orden = Comando("""
-            SELECT d.id,d.visita,d.llegada,coalesce(a.campos,d.campos),d.historia,
-                   coalesce(d.version_impresa=a.version,0) AS impresa
+            SELECT d.id,d.visita,d.llegada,
+                   coalesce(json_extract(a.campos,'$.nombre'),r.nombre,json_extract(d.campos,'$.nombre')) AS nombre,
+                   coalesce(json_extract(a.campos,'$.cedula'),r.cedula,json_extract(d.campos,'$.cedula'),'') AS cedula,
+                   d.historia,
+                   CASE WHEN d.version_impresa=a.version THEN 3 WHEN a.finalizada=1 THEN 2
+                        WHEN d.historia IS NOT NULL THEN 1 ELSE coalesce(r.estado,0) END AS estado
             FROM derivacion d LEFT JOIN atencion a ON a.id=d.historia
-            ORDER BY impresa ASC,d.llegada DESC,d.visita DESC
+            LEFT JOIN cambio_consulta_recibido r ON r.id=d.id
+            WHERE NOT EXISTS (SELECT 1 FROM retiro_derivacion b WHERE b.derivacion=d.id)
+            UNION ALL
+            SELECT r.id,r.visita,r.llegada,r.nombre,r.cedula,NULL,r.estado
+            FROM cambio_consulta_recibido r
+            WHERE NOT EXISTS (SELECT 1 FROM derivacion d WHERE d.id=r.id)
+              AND NOT EXISTS (SELECT 1 FROM retiro_derivacion b WHERE b.derivacion=r.id)
+            ORDER BY estado ASC,llegada DESC,visita DESC
             """, null);
         using var filas = orden.ExecuteReader();
         var bandeja = new List<FilaAdmision>();
         while (filas.Read())
         {
-            var campos = JsonSerializer.Deserialize<Dictionary<string, string>>(filas.GetString(3))!;
-            bandeja.Add(new(Guid.Parse(filas.GetString(0)), filas.GetInt64(1), filas.GetDateTime(2), campos["nombre"], campos.GetValueOrDefault("cedula", ""),
-                filas.IsDBNull(4) ? null : filas.GetInt64(4), filas.GetBoolean(5)));
+            bandeja.Add(new(Guid.Parse(filas.GetString(0)), filas.GetInt64(1), filas.GetDateTime(2), filas.GetString(3), filas.GetString(4),
+                filas.IsDBNull(5) ? null : filas.GetInt64(5), (EstadoConsulta)filas.GetInt32(6)));
         }
         return bandeja;
     }
@@ -64,7 +82,11 @@ internal sealed partial class Archivo
     internal Atencion AbrirDerivacion(Guid id, Medico usuario)
     {
         using var tx = conexion.BeginTransaction();
-        using var orden = Comando("SELECT historia,llegada,campos FROM derivacion WHERE id=$id", tx, ("$id", id.ToString()));
+        using var orden = Comando("""
+            SELECT historia,llegada,campos FROM derivacion WHERE id=$id
+              AND NOT EXISTS(SELECT 1 FROM retiro_derivacion WHERE derivacion=$id)
+              AND (historia IS NOT NULL OR NOT EXISTS(SELECT 1 FROM cambio_consulta_recibido WHERE id=$id))
+            """, tx, ("$id", id.ToString()));
         long historia;
         using (var fila = orden.ExecuteReader())
         {
@@ -81,6 +103,7 @@ internal sealed partial class Archivo
                 using var vincular = Comando("UPDATE derivacion SET historia=$historia WHERE id=$id", tx,
                     ("$historia", historia), ("$id", id.ToString()));
                 vincular.ExecuteNonQuery();
+                EncolarCambio(historia, tx);
             }
         }
         tx.Commit();
@@ -97,11 +120,15 @@ internal sealed partial class Archivo
 
     internal void RegistrarImpresion(Atencion historia)
     {
+        using var tx = conexion.BeginTransaction();
         using var orden = Comando("""
             UPDATE derivacion SET version_impresa=$version WHERE historia=$id
             AND EXISTS(SELECT 1 FROM atencion WHERE id=$id AND version=$version AND finalizada=1)
-            """, null, ("$id", historia.Id), ("$version", historia.Version));
+            AND NOT EXISTS(SELECT 1 FROM retiro_derivacion WHERE retiro_derivacion.derivacion=derivacion.id)
+            """, tx, ("$id", historia.Id), ("$version", historia.Version));
         if (orden.ExecuteNonQuery() != 1)
             throw new InvalidOperationException("La versión impresa ya no coincide con la historia actual.");
+        EncolarCambio(historia.Id, tx);
+        tx.Commit();
     }
 }

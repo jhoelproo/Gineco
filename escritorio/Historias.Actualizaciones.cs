@@ -8,13 +8,13 @@ internal sealed partial class Historias
         pie.Controls.Add(boton);
         boton.Click += (_, _) =>
         {
-            using var ventana = new VentanaActualizaciones(actualizaciones, usuario.Administrador);
+            using var ventana = new VentanaActualizaciones(actualizaciones);
             if (ventana.ShowDialog(this) == DialogResult.OK) Close();
             else boton.Text = TituloActualizaciones(actualizaciones);
         };
         Shown += async (_, _) =>
         {
-            if (!actualizaciones.Configurada || !actualizaciones.Instalada) return;
+            if (!actualizaciones.Instalada) return;
             boton.Enabled = false;
             try
             {
@@ -36,16 +36,14 @@ internal sealed class VentanaActualizaciones : Form
     private readonly Label estado = Estilo.Texto("", 11);
     private readonly Button buscar = Estilo.Boton("Buscar ahora");
     private readonly Button instalar = Estilo.Boton("Instalar y reiniciar", Estilo.Principal);
-    private readonly Button guardar = Estilo.Boton("Guardar acceso");
-    private readonly TextBox token = new() { UseSystemPasswordChar = true, MaxLength = 255, Width = 360 };
     private readonly CancellationTokenSource cierre = new();
 
-    internal VentanaActualizaciones(IActualizaciones actualizaciones, bool administrador)
+    internal VentanaActualizaciones(IActualizaciones actualizaciones)
     {
         this.actualizaciones = actualizaciones;
         Estilo.Ventana(this);
         Text = "Actualizaciones";
-        ClientSize = new Size(530, 285);
+        ClientSize = new Size(530, 170);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = MaximizeBox = false;
@@ -61,12 +59,6 @@ internal sealed class VentanaActualizaciones : Form
         contenido.Controls.Add(Estilo.Texto($"Versión {actualizaciones.Version}", 16, true));
         estado.MaximumSize = new Size(470, 0);
         contenido.Controls.Add(estado);
-        if (administrador && actualizaciones.Instalada)
-        {
-            Estilo.Campo(contenido, "Token de lectura de GitHub", token);
-            contenido.Controls.Add(guardar);
-            guardar.Click += async (_, _) => await GuardarYBuscar();
-        }
         var acciones = Estilo.Barra(DockStyle.None);
         acciones.AutoSize = true;
         var publicaciones = Estilo.Boton("Abrir GitHub");
@@ -87,7 +79,6 @@ internal sealed class VentanaActualizaciones : Form
     private void MostrarEstado()
     {
         estado.Text = actualizaciones is { Instalada: false } ? "Instala Gineco desde GitHub para habilitar las actualizaciones."
-            : actualizaciones is { Configurada: false } ? "El administrador debe configurar el acceso a las actualizaciones."
             : actualizaciones.Disponible is { } version ? $"Disponible la versión {version}."
             : "Busca la última versión publicada.";
         HabilitarAcciones(true);
@@ -95,18 +86,8 @@ internal sealed class VentanaActualizaciones : Form
 
     private void HabilitarAcciones(bool habilitar)
     {
-        buscar.Enabled = habilitar && actualizaciones.Instalada && actualizaciones.Configurada;
+        buscar.Enabled = habilitar && actualizaciones.Instalada;
         instalar.Enabled = habilitar && actualizaciones.Disponible is not null;
-        guardar.Enabled = token.Enabled = habilitar;
-    }
-
-    private async Task GuardarYBuscar()
-    {
-        try { actualizaciones.GuardarAcceso(token.Text); }
-        catch (ArgumentException error) { estado.Text = error.Message; return; }
-        catch (Exception) { estado.Text = "Windows no pudo guardar el acceso para esta cuenta."; return; }
-        token.Clear();
-        await Buscar();
     }
 
     private async Task Buscar()
@@ -122,7 +103,7 @@ internal sealed class VentanaActualizaciones : Form
         }
         catch (Exception)
         {
-            if (!IsDisposed) estado.Text = "No se pudo consultar GitHub. Comprueba Internet y el acceso de lectura.";
+            if (!IsDisposed) estado.Text = "No se pudo consultar GitHub. Comprueba la conexión a Internet.";
         }
         finally { if (!IsDisposed) HabilitarAcciones(true); }
     }

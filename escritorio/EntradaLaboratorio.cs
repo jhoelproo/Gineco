@@ -42,6 +42,8 @@ internal sealed class EntradaLaboratorio : FlowLayoutPanel
     }
 
     internal void AjustarAncho(int ancho) => detalle.Width = ancho;
+    internal bool FaltaDetalle => otros.Checked && string.IsNullOrWhiteSpace(detalle.Text);
+    internal void EnfocarDetalle() => detalle.Focus();
 
     internal string Valor() => new AnalisisLaboratorio(
         habituales.Where(casilla => casilla.Checked).Select(casilla => casilla.Text).ToArray(),

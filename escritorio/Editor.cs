@@ -226,8 +226,8 @@ internal sealed partial class Editor : Form
         pagina.Controls.Add(detalle);
         AgregarCampo(detalle, "lugar");
         AdaptarAncho(pagina, detalle);
-        detalle.Visible = previas.Valor == OpcionesClinicas.No;
-        previas.Editada += (_, _) => detalle.Visible = previas.Valor == OpcionesClinicas.No;
+        detalle.Visible = previas.Valor == "Sí";
+        previas.Editada += (_, _) => detalle.Visible = previas.Valor == "Sí";
     }
 
     private SeleccionClinica AgregarSeleccion(FlowLayoutPanel pagina, string clave, string etiqueta, string[] opciones)
@@ -444,7 +444,9 @@ internal sealed partial class Editor : Form
     {
         try
         {
-            var actual = new Atencion(anterior?.Id ?? 0, anterior?.Responsable ?? usuario, fecha.Value, LeerDatos(), finalizada) { Perfil = perfilAplicado };
+            var datos = LeerDatos();
+            if (finalizada) RevisarDetalles(datos);
+            var actual = new Atencion(anterior?.Id ?? 0, anterior?.Responsable ?? usuario, fecha.Value, datos, finalizada) { Perfil = perfilAplicado };
             HistoriaGuardada = archivo.Guardar(usuario, actual, anterior, motivo.Text.Trim());
             SolicitaImpresion = finalizada && imprimirAlFinalizar && anterior?.Finalizada != true;
             DialogResult = DialogResult.OK;
@@ -456,6 +458,22 @@ internal sealed partial class Editor : Form
         catch (SqliteException)
         {
             MostrarAviso("No se pudo guardar la historia. Vuelve a intentarlo.");
+        }
+    }
+
+    private void RevisarDetalles(Dictionary<string, string> datos)
+    {
+        if (Clinica.DetallePendiente(datos) is { } pendiente)
+        {
+            navegacion.SelectedIndex = 1;
+            campos[pendiente.Campo].Focus();
+            throw new ArgumentException(pendiente.Mensaje);
+        }
+        if (laboratorios.FaltaDetalle)
+        {
+            navegacion.SelectedIndex = 4;
+            laboratorios.EnfocarDetalle();
+            throw new ArgumentException("Completa el detalle de otros análisis antes de finalizar.");
         }
     }
 

@@ -34,6 +34,34 @@ public sealed class Validacion
         Assert.Throws<ArgumentException>(() => Clinica.Validar(campos));
     }
 
+    [Theory]
+    [InlineData("1")]
+    [InlineData("00-12345678900")]
+    [InlineData("S/N")]
+    [InlineData("")]
+    public void AdmiteNssTalComoSeEdita(string nss)
+    {
+        var campos = new Dictionary<string, string> { ["nombre"] = "Paciente ficticia", ["nss"] = nss };
+        Clinica.Validar(campos);
+        Assert.Equal(nss, campos["nss"]);
+    }
+
+    [Theory]
+    [InlineData("alergias", "detalle_alergias")]
+    [InlineData("previas", "lugar")]
+    public void RequiereDetalleAfirmativoSoloAlFinalizar(string campo, string detalle)
+    {
+        var campos = new Dictionary<string, string> { ["nombre"] = "Paciente ficticia", [campo] = "Sí", [detalle] = " " };
+        Clinica.Validar(campos);
+        Assert.Equal(detalle, Clinica.DetallePendiente(campos)!.Value.Campo);
+        Assert.Throws<ArgumentException>(() => Clinica.Validar(campos, finalizada: true));
+        campos[detalle] = "Dato ficticio";
+        Clinica.Validar(campos, finalizada: true);
+        campos[campo] = "No";
+        campos.Remove(detalle);
+        Clinica.Validar(campos, finalizada: true);
+    }
+
     [Fact]
     public void PersisteHistoriaYAplicaPermisosYVersion()
     {
@@ -86,6 +114,8 @@ public sealed class Validacion
             Assert.True(documento.PageCount > 1);
             foreach (var pagina in documento.Pages)
             {
+                Assert.Equal(612, pagina.Width.Point, 1);
+                Assert.Equal(792, pagina.Height.Point, 1);
                 var objetos = pagina.Elements.GetDictionary("/Resources")!.Elements.GetDictionary("/XObject")!;
                 var imagenes = objetos.Elements.Values.OfType<PdfReference>()
                     .Select(referencia => referencia.Value).OfType<PdfDictionary>()

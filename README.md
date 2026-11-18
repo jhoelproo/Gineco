@@ -6,7 +6,7 @@ Aplicación de escritorio para Windows que permite al personal médico registrar
 
 1. Descarga `HospitalContreras.Gineco-win-Setup.exe` desde [GitHub Releases](https://github.com/jhoelproo/Gineco/releases) y ejecútalo con la cuenta de Windows del consultorio.
 2. Abre **Gineco** desde el menú Inicio. En una instalación nueva, registra al primer administrador. Si ya tienes una cuenta, inicia sesión con ella.
-3. Desde **Actualizaciones**, configura una vez el acceso de solo lectura al repositorio. Las próximas versiones aparecerán en la pantalla principal. [Instrucciones de actualización](escritorio/README.md#actualizaciones-de-gineco)
+3. Las próximas versiones aparecerán en la pantalla principal. El repositorio público permite consultar las actualizaciones sin token. [Instrucciones de actualización](escritorio/README.md#actualizaciones-de-gineco)
 
 La bandeja utiliza amarillo para las pacientes pendientes, azul para las que están en atención y verde cuando Windows ha aceptado la impresión. La historia se guarda en la estación del consultorio y permite reimprimir la hoja. [Guía del consultorio y conexión de estaciones](escritorio/README.md)
 

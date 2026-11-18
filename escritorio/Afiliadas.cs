@@ -5,9 +5,16 @@ internal sealed record Identificadores(string Cedula, string Nss)
     internal bool Vacio => Cedula.Length == 0 && Nss.Length == 0;
 
     internal static Identificadores Leer(string cedula, string nss) =>
-        new(Clinica.NormalizarIdentificador(cedula, "Cédula", 11), Clinica.NormalizarIdentificador(nss, "NSS", 9));
+        new(Clinica.NormalizarIdentificador(cedula, "Cédula", 11), ClaveNss(nss));
 
-    internal static Identificadores De(Atencion atencion) => new(atencion.Valor("cedula"), atencion.Valor("nss"));
+    internal static Identificadores De(Atencion atencion) => new(atencion.Valor("cedula"), ClaveNss(atencion.Valor("nss")));
+
+    private static string ClaveNss(string nss)
+    {
+        string limpio = nss.Trim().ToUpperInvariant();
+        if (limpio is "N/S" or "S/N" or "N/A" or "SIN NSS") return "";
+        return string.Concat(limpio.Where(c => !char.IsWhiteSpace(c) && c is not ('-' or '.' or '(' or ')')));
+    }
 
     internal bool Coincide(Identificadores otro) =>
         (Cedula.Length > 0 && Cedula == otro.Cedula) || (Nss.Length > 0 && Nss == otro.Nss);
@@ -31,8 +38,8 @@ internal static class Afiliadas
         if (coincidencias.Count == 0) return new([]);
         if (EsIncompatible(coincidencias, entrada)) return new([], true);
 
-        var vinculados = new Identificadores(Completar(entrada.Cedula, coincidencias, "cedula"),
-            Completar(entrada.Nss, coincidencias, "nss"));
+        var vinculados = new Identificadores(Completar(entrada.Cedula, coincidencias.Select(h => h.Valor("cedula"))),
+            Completar(entrada.Nss, coincidencias.Select(h => Identificadores.De(h).Nss)));
         var anteriores = disponibles.Where(historia => vinculados.Coincide(Identificadores.De(historia)))
             .OrderByDescending(historia => historia.Fecha).ThenByDescending(historia => historia.Id).ToList();
         return EsIncompatible(anteriores, vinculados) ? new([], true) : new(anteriores);
@@ -40,10 +47,10 @@ internal static class Afiliadas
 
     private static bool EsIncompatible(List<Atencion> historias, Identificadores ids) =>
         HayConflicto(historias.Select(historia => historia.Valor("cedula")).Append(ids.Cedula)) ||
-        HayConflicto(historias.Select(historia => historia.Valor("nss")).Append(ids.Nss));
+        HayConflicto(historias.Select(historia => Identificadores.De(historia).Nss).Append(ids.Nss));
 
-    private static string Completar(string actual, List<Atencion> historias, string clave) =>
-        actual.Length > 0 ? actual : historias.Select(historia => historia.Valor(clave)).FirstOrDefault(valor => valor.Length > 0) ?? "";
+    private static string Completar(string actual, IEnumerable<string> numeros) =>
+        actual.Length > 0 ? actual : numeros.FirstOrDefault(valor => valor.Length > 0) ?? "";
 
     private static bool HayConflicto(IEnumerable<string> numeros) =>
         numeros.Where(numero => numero.Length > 0).Distinct().Skip(1).Any();

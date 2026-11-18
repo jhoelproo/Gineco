@@ -52,14 +52,19 @@ internal sealed partial class Historias
     {
         if (recibiendo || enlace is null) return;
         recibiendo = true;
+        var cancelacion = cierre.Token;
         try
         {
             await enlace.Sincronizar(archivo, n =>
             {
                 Recargar();
                 Avisar(n);
-            }, cierre.Token);
-            if (!IsDisposed) conexion.Text = "Admisión conectada";
+            }, cancelacion);
+            if (IsDisposed) return;
+            var (activo, cambios) = await enlace.SincronizarListado(archivo, cancelacion);
+            if (IsDisposed) return;
+            if (cambios) Recargar();
+            conexion.Text = activo ? "Admisión conectada" : "Admisión conectada · Solo listado local";
         }
         catch (HttpRequestException error) when (error.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
@@ -100,7 +105,7 @@ internal sealed partial class Historias
     {
         if (e.RowIndex < 0 || lista.Columns[e.ColumnIndex].DataPropertyName != nameof(FilaHistoria.Estado) ||
             lista.Rows[e.RowIndex].DataBoundItem is not FilaHistoria { Admision: { } a } || SystemInformation.HighContrast) return;
-        var fondo = a.Impresa ? Color.Honeydew : a.Historia.HasValue ? Color.AliceBlue : Color.LemonChiffon;
+        var fondo = a.Impresa ? Color.Honeydew : a.Situacion != EstadoConsulta.Pendiente ? Color.AliceBlue : Color.LemonChiffon;
         e.CellStyle!.SelectionBackColor = e.CellStyle.BackColor = fondo;
         e.CellStyle.SelectionForeColor = e.CellStyle.ForeColor = Estilo.Tinta;
     }

@@ -30,6 +30,8 @@ internal sealed partial class Archivo : IDisposable
         comando.ExecuteNonQuery();
         InicializarPerfiles();
         InicializarDerivaciones();
+        InicializarRetiros();
+        InicializarSincronizacionListado();
     }
 
     private SqliteCommand Comando(string sql, SqliteTransaction? transaccion, params (string, object?)[] parametros)
@@ -118,7 +120,9 @@ internal sealed partial class Archivo : IDisposable
         var perfiles = LeerPerfilesDeHistorias();
         using var comando = Comando("""
             SELECT id,responsable,nombre_medico,fecha,campos,finalizada,version FROM atencion
-            WHERE responsable=$autor OR $admin=1 OR id IN (SELECT historia FROM derivacion)
+            WHERE (responsable=$autor OR $admin=1 OR id IN (SELECT historia FROM derivacion))
+              AND NOT EXISTS (SELECT 1 FROM retiro_historia r WHERE r.historia=atencion.id)
+              AND NOT EXISTS (SELECT 1 FROM retiro_derivacion r JOIN derivacion d ON d.id=r.derivacion WHERE d.historia=atencion.id)
             ORDER BY fecha DESC,id DESC
             """, null, ("$autor", usuario.Exequatur), ("$admin", usuario.Administrador));
         using var lector = comando.ExecuteReader();
@@ -141,7 +145,7 @@ internal sealed partial class Archivo : IDisposable
     internal long Guardar(Medico autor, Atencion actual, Atencion? anterior, string motivo)
     {
         actual = actual with { Perfil = actual.Perfil ?? anterior?.Perfil };
-        Clinica.Validar(actual.Campos);
+        Clinica.Validar(actual.Campos, anterior, actual.Finalizada);
         if (anterior?.Finalizada == true && (!actual.Finalizada || string.IsNullOrWhiteSpace(motivo)))
             throw new ArgumentException("Escribe el motivo de la corrección de la historia finalizada.");
         using var transaccion = conexion.BeginTransaction();
@@ -152,6 +156,7 @@ internal sealed partial class Archivo : IDisposable
             """, transaccion, ("$id", id), ("$autor", autor.Exequatur), ("$fecha", DateTime.UtcNow),
             ("$motivo", motivo), ("$anterior", anterior is null ? null : JsonSerializer.Serialize(anterior)));
         revision.ExecuteNonQuery();
+        EncolarCambio(id, transaccion);
         transaccion.Commit();
         return id;
     }
@@ -174,6 +179,8 @@ internal sealed partial class Archivo : IDisposable
                 responsable=CASE WHEN finalizada=0 AND id IN (SELECT historia FROM derivacion) THEN $autor ELSE responsable END,
                 nombre_medico=CASE WHEN finalizada=0 AND id IN (SELECT historia FROM derivacion) THEN $nombre ELSE nombre_medico END
             WHERE id=$id AND version=$version AND (responsable=$autor OR $admin=1 OR id IN (SELECT historia FROM derivacion))
+              AND NOT EXISTS (SELECT 1 FROM retiro_historia r WHERE r.historia=$id)
+              AND NOT EXISTS (SELECT 1 FROM retiro_derivacion r JOIN derivacion d ON d.id=r.derivacion WHERE d.historia=$id)
             """, transaccion, ("$id", anterior.Id), ("$version", anterior.Version), ("$autor", autor.Exequatur),
             ("$admin", autor.Administrador), ("$nombre", autor.Nombre), ("$fecha", actual.Fecha), ("$campos", JsonSerializer.Serialize(actual.Campos)),
             ("$finalizada", actual.Finalizada));

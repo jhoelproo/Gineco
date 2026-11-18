@@ -24,7 +24,7 @@ internal static class Informe
         documento.Styles[StyleNames.Normal]!.Font.Name = "Arial";
         documento.Styles[StyleNames.Normal]!.Font.Size = Unit.FromPoint(9);
         var pagina = documento.AddSection();
-        pagina.PageSetup.PageFormat = PageFormat.A4;
+        pagina.PageSetup.PageFormat = PageFormat.Letter;
         pagina.PageSetup.TopMargin = Unit.FromCentimeter(3.4);
         pagina.PageSetup.HeaderDistance = Unit.FromCentimeter(0.8);
         pagina.PageSetup.LeftMargin = Unit.FromCentimeter(1.5);

@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Net;
 using System.Text.RegularExpressions;
 
 namespace Gineco;
@@ -41,5 +42,23 @@ internal sealed class EnlaceAdmision(HttpClient cliente)
         using var acuse = await cliente.PostAsJsonAsync("confirmar_recepcion",
             new { ids = lote.Select(fila => fila.Id).ToArray() }, cancelacion);
         acuse.EnsureSuccessStatusCode();
+    }
+
+    internal async Task<(bool Activo, bool Cambios)> SincronizarListado(Archivo archivo, CancellationToken cancelacion)
+    {
+        var pendientes = archivo.CambiosPendientes();
+        if (pendientes.Count > 0)
+        {
+            using var escritura = await cliente.PostAsJsonAsync("registrar_cambios_consulta", new { cambios = pendientes }, cancelacion);
+            if (escritura.StatusCode == HttpStatusCode.NotFound) return (false, false);
+            escritura.EnsureSuccessStatusCode();
+        }
+        using var respuesta = await cliente.PostAsJsonAsync("leer_cambios_consulta", new { desde = archivo.UltimoCambioRecibido() }, cancelacion);
+        if (respuesta.StatusCode == HttpStatusCode.NotFound) return (false, false);
+        respuesta.EnsureSuccessStatusCode();
+        var cambios = await respuesta.Content.ReadFromJsonAsync<List<CambioConsulta>>(cancelacion)
+            ?? throw new InvalidDataException("El servidor no devolvió el listado de cambios.");
+        cancelacion.ThrowIfCancellationRequested();
+        return (true, archivo.IntegrarCambios(cambios, pendientes));
     }
 }

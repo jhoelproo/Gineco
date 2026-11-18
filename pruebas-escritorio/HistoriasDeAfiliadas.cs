@@ -18,7 +18,8 @@ public sealed class HistoriasDeAfiliadas
         Assert.Empty(Afiliadas.Buscar([reciente], new("", "")).Historias);
         Assert.Empty(Afiliadas.Buscar([reciente], new("", "111111111")).Historias);
         Assert.Throws<ArgumentException>(() => Identificadores.Leer("001", ""));
-        Assert.Throws<ArgumentException>(() => Identificadores.Leer("", "00123456x"));
+        Assert.Equal("00123456X", Identificadores.Leer("", "00123456x").Nss);
+        Assert.True(Identificadores.Leer("", "N/S").Vacio);
     }
 
     [Fact]

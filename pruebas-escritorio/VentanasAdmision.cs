@@ -15,6 +15,8 @@ public sealed partial class Ventanas
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
+            if (request.RequestUri!.AbsolutePath.EndsWith("leer_cambios_consulta"))
+                return Task.FromResult(new HttpResponseMessage(Estado) { Content = JsonContent.Create(Array.Empty<CambioConsulta>()) });
             if (request.RequestUri!.AbsolutePath.EndsWith("confirmar_recepcion")) Pendientes.Clear();
             return Task.FromResult(new HttpResponseMessage(Estado) { Content = JsonContent.Create(Pendientes.ToArray()) });
         }
@@ -138,6 +140,8 @@ public sealed partial class Ventanas
                 Assert.Equal("Enviada a impresión", Descendientes(ventana).OfType<DataGridView>().Single().CurrentRow!.Cells[4].FormattedValue);
                 using var documento = PdfSharp.Pdf.IO.PdfReader.Open(salida, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
                 Assert.Equal(1, documento.PageCount);
+                Assert.Equal(612, documento.Pages[0].Width.Point, 1);
+                Assert.Equal(792, documento.Pages[0].Height.Point, 1);
             });
         }
         finally { File.Delete(salida); }

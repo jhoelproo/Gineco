@@ -236,10 +236,11 @@ public sealed partial class Ventanas
             var detalle = editor.Controls.Find("lugar", true).Single();
             Assert.False(detalle.Visible);
             ElegirCasilla(editor, "previas", "Sí");
-            Assert.False(detalle.Visible);
-            ElegirCasilla(editor, "previas", "No");
             Assert.True(detalle.Visible);
+            ElegirCasilla(editor, "previas", "No");
+            Assert.False(detalle.Visible);
             Assert.Equal("No", Assert.IsType<SeleccionClinica>(editor.Controls.Find("previas", true).Single()).Valor);
+            ElegirCasilla(editor, "previas", "Sí");
             detalle.Text = "Detalle de ejemplo";
             Capturar(editor, "atenciones-previas");
 

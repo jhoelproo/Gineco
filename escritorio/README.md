@@ -53,10 +53,23 @@ Desde una cuenta de Windows que ya tenga configurado ese rol, ejecuta `./supabas
 
 Cierra la copia anterior de Gineco. Descarga y ejecuta una vez **HospitalContreras.Gineco-win-Setup.exe** con la cuenta de Windows que usa el consultorio. Abre **Gineco** desde el menú Inicio. Se conservan las cuentas y las historias de esa cuenta de Windows en `%LOCALAPPDATA%\Gineco` y el vínculo de Admisión existente. [Publicaciones en GitHub](https://github.com/jhoelproo/Gineco/releases)
 
-Para que la aplicación pueda consultar el repositorio privado, el propietario genera un **fine-grained personal access token** de GitHub con acceso solo a `jhoelproo/Gineco` y permiso **Contents · Read-only**. El administrador de Gineco pega el token en **Actualizaciones → Token de lectura de GitHub → Guardar acceso**. Windows protege la credencial para esa cuenta. Cuando expire, reemplázala en el mismo campo. [Crear un token de acceso detallado](https://github.com/settings/personal-access-tokens/new)
+Desde la beta 4, Gineco consulta el repositorio público sin token. Si usas una beta anterior, ejecuta el instalador de la beta 4 una vez para activar esa consulta.
 
 Gineco comprueba la versión al entrar a **Historias clínicas**. Si hay una nueva publicación, pulsa **Actualización disponible → Instalar y reiniciar**. También puedes usar **Buscar ahora**. Guarda y cierra cualquier historia abierta antes de actualizar.
 
 ### Publicar una versión nueva
 
-Sube el número de versión en `escritorio/Gineco.csproj` y ejecuta `./escritorio/Empaquetar.ps1` con el SDK de .NET 10. En la publicación de GitHub de esa versión, adjunta `HospitalContreras.Gineco-win-Setup.exe`, `releases.win.json` y todos los `.nupkg` referenciados por el manifiesto que generó Velopack. Publica el instalador y el manifiesto juntos en la misma etiqueta. El repositorio permanece privado.
+Sube el número de versión en `escritorio/Gineco.csproj` y ejecuta `./escritorio/Empaquetar.ps1` con el SDK de .NET 10. En la publicación de GitHub de esa versión, adjunta `HospitalContreras.Gineco-win-Setup.exe`, `releases.win.json` y todos los `.nupkg` referenciados por el manifiesto que generó Velopack. Publica el instalador y el manifiesto juntos en la misma etiqueta.
+
+## Cambios en la beta 4
+
+- El NSS admite los valores recibidos de Admisión, incluidos los de menos o más de nueve caracteres. El médico puede editarlo.
+- Al finalizar, **Sí** en Alergias o Atenciones previas requiere su detalle. Seleccionar **Otros análisis** requiere escribir cuáles. El borrador admite campos incompletos.
+- El PDF y el trabajo enviado a Windows usan papel carta (8,5 × 11 pulgadas).
+- **Eliminar del listado** permite al administrador retirar la atención seleccionada. Se conserva la historia con el registro de quién la retiró.
+
+### Sincronizar el listado entre consultorios
+
+El administrador de Supabase aplica una vez [la migración del listado](../supabase/migrations/20261118100017_sincronizar_listado_gineco.sql) en el proyecto **Ginecología**, después de la migración de Admisión. Si todavía no está aplicada, Gineco indica **Admisión conectada · Solo listado local** y conserva los cambios por enviar.
+
+En las estaciones vinculadas se comparten el nombre, la cédula, la visita y el estado de las admisiones que el médico abre o modifica. Las historias que se crean directamente en Gineco y el contenido clínico de cada historia se guardan en la PC de origen. **Eliminar del listado** es una acción local del administrador y se aplica solo a la visita seleccionada.

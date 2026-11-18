@@ -23,20 +23,35 @@ internal static class Clinica
     internal static DateTime HoraHospital() =>
         TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SA Western Standard Time"));
 
-    internal static void Validar(Dictionary<string, string> campos)
+    internal static void Validar(Dictionary<string, string> campos, Atencion? anterior = null, bool finalizada = false)
     {
         if (string.IsNullOrWhiteSpace(campos.GetValueOrDefault("nombre")))
             throw new ArgumentException("Escribe el nombre completo de la paciente.");
         var edad = campos.GetValueOrDefault("edad", "");
-        if (edad.Length > 0 && (!int.TryParse(edad, out int valor) || valor is < 0 or > 130))
+        if (edad != anterior?.Valor("edad") && edad.Length > 0 && (!int.TryParse(edad, out int valor) || valor is < 0 or > 130))
             throw new ArgumentException("Introduce una edad entre 0 y 130.");
-        NormalizarNumero(campos, "cedula", "Cédula", 11);
-        NormalizarNumero(campos, "telefono", "Teléfono", 10);
-        NormalizarNumero(campos, "nss", "NSS", 9);
+        NormalizarNumero(campos, anterior, "cedula", "Cédula", 11);
+        NormalizarNumero(campos, anterior, "telefono", "Teléfono", 10);
+        campos["nss"] = campos.GetValueOrDefault("nss", "").Trim();
+        if (finalizada && DetallePendiente(campos) is { } pendiente)
+            throw new ArgumentException(pendiente.Mensaje);
     }
 
-    private static void NormalizarNumero(Dictionary<string, string> campos, string clave, string etiqueta, int longitud)
-        => campos[clave] = NormalizarIdentificador(campos.GetValueOrDefault(clave, ""), etiqueta, longitud);
+    private static void NormalizarNumero(Dictionary<string, string> campos, Atencion? anterior, string clave, string etiqueta, int longitud)
+    {
+        string valor = campos.GetValueOrDefault(clave, "");
+        if (anterior is null || valor != anterior.Valor(clave))
+            campos[clave] = NormalizarIdentificador(valor, etiqueta, longitud);
+    }
+
+    internal static (string Campo, string Mensaje)? DetallePendiente(IReadOnlyDictionary<string, string> campos)
+    {
+        if (campos.GetValueOrDefault("alergias") is "Sí" or "Si" && string.IsNullOrWhiteSpace(campos.GetValueOrDefault("detalle_alergias")))
+            return ("detalle_alergias", "Especifica las alergias antes de finalizar.");
+        if (campos.GetValueOrDefault("previas") is "Sí" or "Si" && string.IsNullOrWhiteSpace(campos.GetValueOrDefault("lugar")))
+            return ("lugar", "Completa el detalle de las atenciones previas antes de finalizar.");
+        return null;
+    }
 
     internal static string NormalizarIdentificador(string numero, string etiqueta, int longitud)
     {

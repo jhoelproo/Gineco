@@ -16,7 +16,7 @@ internal static class Program
             var carpeta = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Gineco");
             Directory.CreateDirectory(carpeta);
             using var archivo = new Archivo(Path.Combine(carpeta, "historias.sqlite3"));
-            Iniciar(archivo, new Actualizaciones(carpeta));
+            Iniciar(archivo, new Actualizaciones());
         }
         catch (Exception error) when (error is IOException or SqliteException or UnauthorizedAccessException)
         {
@@ -172,6 +172,7 @@ internal sealed partial class Historias : Form
     private readonly Button abrir = Estilo.Boton("Abrir historia", Estilo.Principal);
     private readonly Button exportar = Estilo.Boton("Exportar PDF");
     private readonly Button imprimir = Estilo.Boton("Imprimir");
+    private readonly Button retirar = Estilo.Boton("Eliminar del listado");
     private readonly TextBox buscar = new() { PlaceholderText = "Buscar por nombre o cédula", Width = 240 };
     private List<Atencion> atenciones = [];
 
@@ -221,6 +222,11 @@ internal sealed partial class Historias : Form
         pie.Controls.Add(abrir);
         pie.Controls.Add(imprimir);
         pie.Controls.Add(exportar);
+        if (usuario.Administrador)
+        {
+            pie.Controls.Add(retirar);
+            retirar.Click += (_, _) => RetirarSeleccion();
+        }
         if (actualizaciones is not null) PrepararActualizaciones(pie, actualizaciones);
         abrir.Click += (_, _) => AbrirSeleccion();
         imprimir.Click += (_, _) => { if (Seleccion?.Atencion is { } a) Imprimir(a); };
@@ -287,9 +293,10 @@ internal sealed partial class Historias : Form
 
     private void ActualizarAcciones()
     {
-        abrir.Enabled = Seleccion is not null;
+        abrir.Enabled = Seleccion is { } fila && fila.Admision?.SoloRemota != true;
         exportar.Enabled = Seleccion?.Atencion is not null;
         imprimir.Enabled = Seleccion?.Atencion?.Finalizada == true;
+        retirar.Enabled = usuario.Administrador && Seleccion is not null;
     }
 
     private sealed record FilaHistoria(Atencion? Atencion, FilaAdmision? Admision)
@@ -339,7 +346,7 @@ internal sealed partial class Historias : Form
     private void AbrirSeleccion()
     {
         var fila = Seleccion;
-        if (fila is null) return;
+        if (fila is null || fila.Admision?.SoloRemota == true) return;
         try
         {
             Editar(fila.Atencion ?? archivo.AbrirDerivacion(fila.Admision!.Id, usuario));
@@ -350,13 +357,30 @@ internal sealed partial class Historias : Form
         }
     }
 
+    private void RetirarSeleccion()
+    {
+        if (Seleccion is not { } fila) return;
+        if (MessageBox.Show(this, $"¿Quitar a {fila.Nombre} del listado de Ginecología? La historia y su registro de auditoría se conservan.",
+            "Eliminar del listado", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+        try
+        {
+            archivo.Retirar(usuario, fila.Atencion?.Id, fila.Admision?.Id);
+            Recargar();
+        }
+        catch (Exception error) when (error is SqliteException or InvalidOperationException or ArgumentException)
+        {
+            MessageBox.Show(this, "No se pudo retirar la atención. Comprueba que siga en el listado.", Text);
+        }
+    }
+
     private void Editar(Atencion? atencion)
     {
         using var editor = new Editor(archivo, usuario, atencion, imprimirAlFinalizar: true);
         var resultado = editor.ShowDialog(this);
         Recargar();
-        if (resultado == DialogResult.OK && editor.SolicitaImpresion)
-            Imprimir(atenciones.Single(a => a.Id == editor.HistoriaGuardada));
+        if (resultado == DialogResult.OK && editor.SolicitaImpresion &&
+            atenciones.FirstOrDefault(a => a.Id == editor.HistoriaGuardada) is { } guardada)
+            Imprimir(guardada);
     }
 
     private void Configurar()
