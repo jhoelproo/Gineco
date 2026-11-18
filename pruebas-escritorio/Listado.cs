@@ -84,13 +84,13 @@ public sealed class Listado
         using var servidor = new Servidor(salida with { Orden = 1, Visita = derivacion.Visita, Llegada = derivacion.Llegada });
         using var cliente = new HttpClient(servidor) { BaseAddress = new("https://localhost/") };
         var enlace = new EnlaceAdmision(cliente);
-        Assert.Equal((false, false), await enlace.SincronizarListado(archivo, default));
+        Assert.Equal((false, false, false), await enlace.SincronizarListado(archivo, default));
         Assert.Equal(salida.Evento, Assert.Single(archivo.CambiosPendientes()).Evento);
         servidor.Activo = true;
-        Assert.Equal((true, true), await enlace.SincronizarListado(archivo, default));
+        Assert.Equal((true, true, true), await enlace.SincronizarListado(archivo, default));
         Assert.Empty(archivo.CambiosPendientes());
         servidor.ServirCambios = false;
-        Assert.Equal((true, false), await enlace.SincronizarListado(archivo, default));
+        Assert.Equal((true, false, true), await enlace.SincronizarListado(archivo, default));
     }
 
     [Theory]
@@ -103,7 +103,7 @@ public sealed class Listado
         using var cliente = new HttpClient(new RespuestaVacia(estado)) { BaseAddress = new("https://localhost/") };
         var enlace = new EnlaceAdmision(cliente);
         if (estado == HttpStatusCode.NotFound)
-            Assert.Equal((false, false), await enlace.SincronizarListado(archivo, default));
+            Assert.Equal((false, false, false), await enlace.SincronizarListado(archivo, default));
         else if (estado == HttpStatusCode.Forbidden)
             await Assert.ThrowsAsync<HttpRequestException>(() => enlace.SincronizarListado(archivo, default));
         else

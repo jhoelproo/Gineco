@@ -8,6 +8,7 @@ internal record Atencion(long Id, Medico Responsable, DateTime Fecha, Dictionary
     bool Finalizada = false, int Version = 0)
 {
     public PerfilAplicado? Perfil { get; init; }
+    public bool Impresa { get; init; }
     public string Nombre => Valor("nombre");
     public string Valor(string clave) => Campos.GetValueOrDefault(clave, "");
     public override string ToString() => $"{Fecha:dd/MM/yyyy HH:mm} · {Nombre} · {(Finalizada ? "Finalizada" : "Borrador")}";
@@ -20,8 +21,10 @@ internal static class Clinica
     internal static readonly Dictionary<string, Dictionary<string, string>> Secciones =
         JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(File.ReadAllText(Recurso("campos.json")))!;
 
-    internal static DateTime HoraHospital() =>
-        TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SA Western Standard Time"));
+    internal static DateTime HoraHospital() => HoraHospital(DateTimeOffset.UtcNow);
+
+    internal static DateTime HoraHospital(DateTimeOffset instante) =>
+        TimeZoneInfo.ConvertTime(instante, TimeZoneInfo.FindSystemTimeZoneById("SA Western Standard Time")).DateTime;
 
     internal static void Validar(Dictionary<string, string> campos, Atencion? anterior = null, bool finalizada = false)
     {

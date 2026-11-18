@@ -26,6 +26,8 @@ internal sealed partial class Archivo : IDisposable
             CREATE TABLE IF NOT EXISTS revision(
                 id INTEGER PRIMARY KEY, atencion INTEGER NOT NULL REFERENCES atencion(id),
                 autor TEXT NOT NULL, fecha TEXT NOT NULL, motivo TEXT NOT NULL, anterior TEXT);
+            CREATE TABLE IF NOT EXISTS impresion_historia(
+                historia INTEGER PRIMARY KEY REFERENCES atencion(id), version INTEGER NOT NULL);
             """, null);
         comando.ExecuteNonQuery();
         InicializarPerfiles();
@@ -119,7 +121,9 @@ internal sealed partial class Archivo : IDisposable
     {
         var perfiles = LeerPerfilesDeHistorias();
         using var comando = Comando("""
-            SELECT id,responsable,nombre_medico,fecha,campos,finalizada,version FROM atencion
+            SELECT id,responsable,nombre_medico,fecha,campos,finalizada,version,
+                EXISTS(SELECT 1 FROM impresion_historia i WHERE i.historia=atencion.id AND i.version=atencion.version)
+            FROM atencion
             WHERE (responsable=$autor OR $admin=1 OR id IN (SELECT historia FROM derivacion))
               AND NOT EXISTS (SELECT 1 FROM retiro_historia r WHERE r.historia=atencion.id)
               AND NOT EXISTS (SELECT 1 FROM retiro_derivacion r JOIN derivacion d ON d.id=r.derivacion WHERE d.historia=atencion.id)
@@ -131,7 +135,7 @@ internal sealed partial class Archivo : IDisposable
             historias.Add(new(lector.GetInt64(0), new(lector.GetString(1), lector.GetString(2), false),
                 lector.GetDateTime(3), JsonSerializer.Deserialize<Dictionary<string, string>>(lector.GetString(4))!,
                 lector.GetBoolean(5), lector.GetInt32(6))
-            { Perfil = perfiles.GetValueOrDefault(lector.GetInt64(0)) });
+            { Perfil = perfiles.GetValueOrDefault(lector.GetInt64(0)), Impresa = lector.GetBoolean(7) });
         return historias;
     }
 

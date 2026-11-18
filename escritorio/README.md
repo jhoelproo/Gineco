@@ -73,3 +73,9 @@ Sube el número de versión en `escritorio/Gineco.csproj` y ejecuta `./escritori
 El administrador de Supabase aplica una vez [la migración del listado](../supabase/migrations/20261118100017_sincronizar_listado_gineco.sql) en el proyecto **Ginecología**, después de la migración de Admisión. Si todavía no está aplicada, Gineco indica **Admisión conectada · Solo listado local** y conserva los cambios por enviar.
 
 En las estaciones vinculadas se comparten el nombre, la cédula, la visita y el estado de las admisiones que el médico abre o modifica. Las historias que se crean directamente en Gineco y el contenido clínico de cada historia se guardan en la PC de origen. **Eliminar del listado** es una acción local del administrador y se aplica solo a la visita seleccionada.
+
+### Revisar la bandeja
+
+Gineco abre en **Pendientes**. Selecciona **En atención** para retomar un borrador, **Finalizadas** para ver historias listas para imprimir o **Enviadas a impresión** para revisar las que Windows aceptó en la cola. **Todas** permite buscar por nombre o cédula sin elegir un estado. Los contadores muestran el total de cada grupo.
+
+La última sincronización muestra la fecha y hora del hospital. Si se pierde la conexión, Gineco conserva en pantalla el listado disponible y esa hora. Cuando recibe un lote completo, muestra **Sincronizando listado…** hasta que termine de ponerse al día.

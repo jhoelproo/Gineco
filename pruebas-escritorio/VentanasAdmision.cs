@@ -44,7 +44,9 @@ public sealed partial class Ventanas
                 () => new HttpClient(transporte) { BaseAddress = new("https://localhost/") });
             ventana.Show();
             bool TieneTexto(string t) => Descendientes(ventana).OfType<Label>().Any(l => l.Text == t);
-            EsperarHasta(() => TieneTexto("Admisión conectada"));
+            EsperarHasta(() => archivo.UltimaSincronizacion().HasValue);
+            Assert.Contains(Descendientes(ventana).OfType<Label>(),
+                l => l.Text.StartsWith("Admisión conectada · Última sincronización"));
             Assert.True(TieneTexto("Nueva paciente de Admisión"));
             var lista = Assert.Single(Descendientes(ventana).OfType<DataGridView>());
             Assert.Equal("Pendiente", lista.CurrentRow!.Cells[4].FormattedValue);
@@ -65,22 +67,30 @@ public sealed partial class Ventanas
             };
             abrir.Start();
             Descendientes(ventana).OfType<Button>().Single(b => b.Text == "Abrir historia").PerformClick();
+            Assert.Equal(2, lista.Rows.Count);
+            FiltroDeBandeja(ventana, "En atención").Checked = true;
             Assert.Equal("En atención", lista.CurrentRow!.Cells[4].FormattedValue);
             Assert.Equal("Paciente 1", lista.CurrentRow.Cells[0].Value);
+            FiltroDeBandeja(ventana, "Todas").Checked = true;
             var buscar = Descendientes(ventana).OfType<TextBox>().Single();
             buscar.Text = "001-0000001-1";
             Assert.Equal(3, lista.Rows.Count);
             buscar.Text = "inexistente";
             Assert.True(TieneTexto("No se encontraron pacientes"));
+            var marca = archivo.UltimaSincronizacion()!.Value;
+            buscar.Clear();
             transporte.Estado = HttpStatusCode.ServiceUnavailable;
             var intento = ventana.Recibir();
             EsperarHasta(() => intento.IsCompleted);
-            Assert.True(TieneTexto("Admisión sin conexión · Reintentando"));
+            Assert.True(TieneTexto($"Admisión sin conexión · Reintentando · Última sincronización {Clinica.HoraHospital(marca):dd/MM/yyyy HH:mm}"));
+            Assert.Equal(marca, archivo.UltimaSincronizacion());
+            Assert.Equal(3, lista.Rows.Count);
             Assert.Equal(3, archivo.Bandeja().Count);
             transporte.Estado = HttpStatusCode.Unauthorized;
             var sinVinculo = ventana.Recibir();
             EsperarHasta(() => sinVinculo.IsCompleted);
-            Assert.True(TieneTexto("Admisión requiere vincular esta PC de consulta"));
+            Assert.Contains(Descendientes(ventana).OfType<Label>(),
+                l => l.Text.StartsWith("Admisión requiere vincular esta PC de consulta · Última sincronización"));
             ventana.Close();
         });
     }
@@ -137,6 +147,7 @@ public sealed partial class Ventanas
                 Descendientes(ventana).OfType<Button>().Single(b => b.Text == "Abrir historia").PerformClick();
                 Assert.Equal(1, revisiones);
                 Assert.Equal("Enviada a impresión", archivo.Bandeja().Single().Estado);
+                FiltroDeBandeja(ventana, "Enviadas a impresión").Checked = true;
                 Assert.Equal("Enviada a impresión", Descendientes(ventana).OfType<DataGridView>().Single().CurrentRow!.Cells[4].FormattedValue);
                 using var documento = PdfSharp.Pdf.IO.PdfReader.Open(salida, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
                 Assert.Equal(1, documento.PageCount);

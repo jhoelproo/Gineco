@@ -186,7 +186,7 @@ internal sealed partial class Historias : Form
         Text = "Historias clínicas";
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(1020, 620);
-        MinimumSize = new Size(695, 430);
+        MinimumSize = new Size(780, 540);
 
         var cabecera = new FlowLayoutPanel
         {
@@ -240,6 +240,7 @@ internal sealed partial class Historias : Form
         var marco = new Panel { Dock = DockStyle.Fill, Padding = new Padding(18, 10, 18, 10) };
         marco.Controls.Add(lista);
         Controls.Add(marco);
+        Controls.Add(CrearFiltros());
         Controls.Add(pie);
         Controls.Add(acciones);
         Controls.Add(cabecera);
@@ -267,6 +268,7 @@ internal sealed partial class Historias : Form
         lista.ColumnHeadersDefaultCellStyle.BackColor = Estilo.Fondo;
         lista.ColumnHeadersDefaultCellStyle.ForeColor = Estilo.Tinta;
         lista.ColumnHeadersDefaultCellStyle.SelectionBackColor = Estilo.Fondo;
+        lista.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
         lista.ColumnHeadersDefaultCellStyle.SelectionForeColor = Estilo.Tinta;
         lista.DefaultCellStyle.ForeColor = Estilo.Tinta;
         lista.DefaultCellStyle.SelectionBackColor = Estilo.Principal;
@@ -275,10 +277,10 @@ internal sealed partial class Historias : Form
         var paciente = new DataGridViewTextBoxColumn { HeaderText = "Paciente", DataPropertyName = nameof(FilaHistoria.Nombre), FillWeight = 49 };
         paciente.DefaultCellStyle.Font = new Font("Segoe UI", 12, FontStyle.Bold);
         lista.Columns.Add(paciente);
-        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Cédula", DataPropertyName = nameof(FilaHistoria.Cedula), FillWeight = 15 });
-        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Fecha y hora", DataPropertyName = nameof(FilaHistoria.Fecha), FillWeight = 21 });
-        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Admisión", DataPropertyName = nameof(FilaHistoria.Visita), FillWeight = 23 });
-        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Estado", DataPropertyName = nameof(FilaHistoria.Estado), FillWeight = 24 });
+        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Cédula", DataPropertyName = nameof(FilaHistoria.Cedula), FillWeight = 15, MinimumWidth = 120 });
+        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Fecha y hora", DataPropertyName = nameof(FilaHistoria.Fecha), FillWeight = 21, MinimumWidth = 148 });
+        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Admisión", DataPropertyName = nameof(FilaHistoria.Visita), FillWeight = 23, MinimumWidth = 95 });
+        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Estado", DataPropertyName = nameof(FilaHistoria.Estado), FillWeight = 24, MinimumWidth = 163 });
         lista.CellFormatting += ColorearEstado;
     }
 
@@ -297,50 +299,6 @@ internal sealed partial class Historias : Form
         exportar.Enabled = Seleccion?.Atencion is not null;
         imprimir.Enabled = Seleccion?.Atencion?.Finalizada == true;
         retirar.Enabled = usuario.Administrador && Seleccion is not null;
-    }
-
-    private sealed record FilaHistoria(Atencion? Atencion, FilaAdmision? Admision)
-    {
-        public string Nombre => Atencion?.Nombre ?? Admision!.Nombre;
-        public string Cedula => Atencion?.Valor("cedula") ?? Admision!.Cedula;
-        public string Fecha => (Admision?.Llegada ?? Atencion!.Fecha).ToString("dd/MM/yyyy HH:mm");
-        public string Visita => Admision is null ? "" : $"#{Admision.Visita}";
-        public string Estado => Admision?.Estado ?? (Atencion!.Finalizada ? "Finalizada" : "Borrador");
-    }
-
-    private void Recargar()
-    {
-        atenciones = archivo.Listar(usuario);
-        admisiones = archivo.Bandeja();
-        Filtrar();
-    }
-
-    private void Filtrar()
-    {
-        var elegida = Seleccion;
-        var consulta = buscar.Text.Trim();
-        string cedula = consulta.Replace("-", "").Replace(" ", "");
-        var vinculadas = admisiones.Where(a => a.Historia.HasValue).ToDictionary(a => a.Historia!.Value);
-        var visibles = admisiones.Where(a => !a.Historia.HasValue).Select(a => new FilaHistoria(null, a))
-            .Concat(atenciones.Select(a => new FilaHistoria(a, vinculadas.GetValueOrDefault(a.Id))))
-            .Where(fila => fila.Nombre.Contains(consulta, StringComparison.CurrentCultureIgnoreCase)
-                || (cedula.Length > 0 && fila.Cedula.Contains(cedula, StringComparison.Ordinal)))
-            .ToList();
-        lista.DataSource = visibles;
-        if (elegida is not null)
-        {
-            int indice = visibles.FindIndex(fila => elegida.Admision is { } d
-                ? fila.Admision?.Id == d.Id : fila.Atencion?.Id == elegida.Atencion!.Id);
-            if (indice >= 0) lista.CurrentCell = lista.Rows[indice].Cells[0];
-        }
-        resultados.Text = visibles.Count switch
-        {
-            0 when atenciones.Count == 0 && admisiones.Count == 0 => "Todavía no hay historias",
-            0 => "No se encontraron pacientes",
-            1 => "1 historia",
-            _ => $"{visibles.Count} historias"
-        };
-        ActualizarAcciones();
     }
 
     private void AbrirSeleccion()

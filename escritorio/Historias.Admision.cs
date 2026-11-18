@@ -17,25 +17,27 @@ internal sealed partial class Historias
     private EnlaceAdmision? enlace;
     private HttpClient? http;
     private bool recibiendo;
+    private DateTimeOffset? ultimaSincronizacion;
     private readonly PrinterSettings? impresora;
 
     private void PrepararRecepcion(Control cabecera, Func<HttpClient?>? conectar)
     {
         conexion.AutoSize = true;
         cabecera.Controls.Add(conexion);
+        ultimaSincronizacion = archivo.UltimaSincronizacion();
         try
         {
             http = conectar?.Invoke();
             if (http is not null)
             {
                 enlace = new(http);
-                conexion.Text = "Conectando con Admisión…";
+                MostrarConexion("Conectando con Admisión…");
                 consulta.Tick += async (_, _) => await Recibir();
                 Shown += async (_, _) => { consulta.Start(); await Recibir(); };
             }
-            else conexion.Text = "Admisión sin configurar";
+            else MostrarConexion("Admisión sin configurar");
         }
-        catch (ArgumentException error) { conexion.Text = error.Message; }
+        catch (ArgumentException error) { MostrarConexion(error.Message); }
         Disposed += LiberarRecepcion;
     }
 
@@ -55,27 +57,48 @@ internal sealed partial class Historias
         var cancelacion = cierre.Token;
         try
         {
-            await enlace.Sincronizar(archivo, n =>
+            bool admisionAlDia = await enlace.Sincronizar(archivo, n =>
             {
                 Recargar();
                 Avisar(n);
             }, cancelacion);
             if (IsDisposed) return;
-            var (activo, cambios) = await enlace.SincronizarListado(archivo, cancelacion);
+            var (activo, cambios, listadoAlDia) = await enlace.SincronizarListado(archivo, cancelacion);
             if (IsDisposed) return;
             if (cambios) Recargar();
-            conexion.Text = activo ? "Admisión conectada" : "Admisión conectada · Solo listado local";
+            ActualizarConexion(activo, admisionAlDia && listadoAlDia);
         }
         catch (HttpRequestException error) when (error.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
-            if (!IsDisposed) conexion.Text = "Admisión requiere vincular esta PC de consulta";
+            MostrarConexion("Admisión requiere vincular esta PC de consulta");
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException
             or InvalidDataException or SqliteException or IOException)
         {
-            if (!IsDisposed) conexion.Text = "Admisión sin conexión · Reintentando";
+            MostrarConexion("Admisión sin conexión · Reintentando");
         }
         finally { recibiendo = false; }
+    }
+
+    private void ActualizarConexion(bool activo, bool alDia)
+    {
+        if (activo && alDia)
+        {
+            var instante = DateTimeOffset.UtcNow;
+            archivo.RegistrarSincronizacion(instante);
+            ultimaSincronizacion = instante;
+        }
+
+        MostrarConexion(!activo ? "Admisión conectada · Solo listado local"
+            : alDia ? "Admisión conectada" : "Sincronizando listado…");
+    }
+
+    private void MostrarConexion(string estado)
+    {
+        if (IsDisposed) return;
+        conexion.Text = ultimaSincronizacion is { } instante
+            ? $"{estado} · Última sincronización {Clinica.HoraHospital(instante):dd/MM/yyyy HH:mm}"
+            : estado;
     }
 
     private void Avisar(int cantidad)
@@ -104,8 +127,14 @@ internal sealed partial class Historias
     private void ColorearEstado(object? sender, DataGridViewCellFormattingEventArgs e)
     {
         if (e.RowIndex < 0 || lista.Columns[e.ColumnIndex].DataPropertyName != nameof(FilaHistoria.Estado) ||
-            lista.Rows[e.RowIndex].DataBoundItem is not FilaHistoria { Admision: { } a } || SystemInformation.HighContrast) return;
-        var fondo = a.Impresa ? Color.Honeydew : a.Situacion != EstadoConsulta.Pendiente ? Color.AliceBlue : Color.LemonChiffon;
+            lista.Rows[e.RowIndex].DataBoundItem is not FilaHistoria fila || SystemInformation.HighContrast) return;
+        var fondo = fila.Situacion switch
+        {
+            EstadoConsulta.Pendiente => Color.LemonChiffon,
+            EstadoConsulta.EnAtencion => Color.AliceBlue,
+            EstadoConsulta.Impresa => Color.Honeydew,
+            _ => Estilo.Fondo
+        };
         e.CellStyle!.SelectionBackColor = e.CellStyle.BackColor = fondo;
         e.CellStyle.SelectionForeColor = e.CellStyle.ForeColor = Estilo.Tinta;
     }
@@ -125,7 +154,7 @@ internal sealed partial class Historias
         }
         try
         {
-            if (admisiones.Any(a => a.Historia == historia.Id)) archivo.RegistrarImpresion(historia);
+            archivo.RegistrarImpresion(historia);
             Recargar();
             resultados.Text = "Enviada a la impresora";
         }

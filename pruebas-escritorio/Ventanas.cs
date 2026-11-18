@@ -436,6 +436,8 @@ public sealed partial class Ventanas
         using var historialGuardado = new Historias(archivo, medico);
         historialGuardado.Show();
         var tabla = Assert.Single(Descendientes(historialGuardado).OfType<DataGridView>());
+        Assert.Empty(tabla.Rows.Cast<DataGridViewRow>());
+        FiltroDeBandeja(historialGuardado, "En atención").Checked = true;
         Assert.Equal(atencion.Nombre, tabla.Rows[0].Cells[0].Value);
         Capturar(historialGuardado, "historial");
         var busqueda = Assert.Single(Descendientes(historialGuardado).OfType<TextBox>());

@@ -19,7 +19,24 @@ internal sealed partial class Archivo
                 id TEXT PRIMARY KEY, orden INTEGER NOT NULL, visita INTEGER NOT NULL, llegada TEXT NOT NULL,
                 nombre TEXT NOT NULL, cedula TEXT NOT NULL, estado INTEGER NOT NULL);
             CREATE INDEX IF NOT EXISTS cambio_consulta_por_orden ON cambio_consulta_recibido(orden);
+            CREATE TABLE IF NOT EXISTS sincronizacion_consulta(
+                id INTEGER PRIMARY KEY CHECK(id=1), instante_utc INTEGER NOT NULL);
             """, null);
+        orden.ExecuteNonQuery();
+    }
+
+    internal DateTimeOffset? UltimaSincronizacion()
+    {
+        using var orden = Comando("SELECT instante_utc FROM sincronizacion_consulta WHERE id=1", null);
+        return orden.ExecuteScalar() is long instante ? DateTimeOffset.FromUnixTimeMilliseconds(instante) : null;
+    }
+
+    internal void RegistrarSincronizacion(DateTimeOffset instante)
+    {
+        using var orden = Comando("""
+            INSERT INTO sincronizacion_consulta(id,instante_utc) VALUES(1,$instante)
+            ON CONFLICT(id) DO UPDATE SET instante_utc=excluded.instante_utc
+            """, null, ("$instante", instante.ToUnixTimeMilliseconds()));
         orden.ExecuteNonQuery();
     }
 

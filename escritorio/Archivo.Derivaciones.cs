@@ -126,9 +126,21 @@ internal sealed partial class Archivo
             AND EXISTS(SELECT 1 FROM atencion WHERE id=$id AND version=$version AND finalizada=1)
             AND NOT EXISTS(SELECT 1 FROM retiro_derivacion WHERE retiro_derivacion.derivacion=derivacion.id)
             """, tx, ("$id", historia.Id), ("$version", historia.Version));
-        if (orden.ExecuteNonQuery() != 1)
+        if (orden.ExecuteNonQuery() == 1) EncolarCambio(historia.Id, tx);
+        else if (!RegistrarImpresionLocal(historia, tx))
             throw new InvalidOperationException("La versión impresa ya no coincide con la historia actual.");
-        EncolarCambio(historia.Id, tx);
         tx.Commit();
+    }
+
+    private bool RegistrarImpresionLocal(Atencion historia, Microsoft.Data.Sqlite.SqliteTransaction tx)
+    {
+        using var orden = Comando("""
+            INSERT INTO impresion_historia(historia,version)
+            SELECT id,version FROM atencion WHERE id=$id AND version=$version AND finalizada=1
+              AND NOT EXISTS (SELECT 1 FROM derivacion WHERE historia=$id)
+              AND NOT EXISTS (SELECT 1 FROM retiro_historia WHERE historia=$id)
+            ON CONFLICT(historia) DO UPDATE SET version=excluded.version
+            """, tx, ("$id", historia.Id), ("$version", historia.Version));
+        return orden.ExecuteNonQuery() == 1;
     }
 }
