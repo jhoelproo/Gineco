@@ -48,3 +48,15 @@ Cuando Admisión confirma una visita de Ginecología, SIGEH guarda la derivació
 ### Preparar un vínculo como administrador
 
 Desde una cuenta de Windows que ya tenga configurado ese rol, ejecuta `./supabase/Vincular-Estacion.ps1 -Funcion admision -ExportarA <carpeta-privada>`. Para el consultorio usa `-Funcion consulta`. Pasa cada carpeta completa solo al puesto correspondiente. El archivo de vínculo contiene la credencial de esa función. Para registrar una credencial nueva, usa `supabase/Registrar-Estacion.ps1` y ejecuta la sentencia de huella que devuelve en el SQL Editor del proyecto **Ginecología**.
+
+## Actualizaciones de Gineco
+
+Cierra la copia anterior de Gineco. Descarga y ejecuta una vez **HospitalContreras.Gineco-win-Setup.exe** con la cuenta de Windows que usa el consultorio. Abre **Gineco** desde el menú Inicio. Se conservan las cuentas y las historias de esa cuenta de Windows en `%LOCALAPPDATA%\Gineco` y el vínculo de Admisión existente. [Publicaciones en GitHub](https://github.com/jhoelproo/Gineco/releases)
+
+Para que la aplicación pueda consultar el repositorio privado, el propietario genera un **fine-grained personal access token** de GitHub con acceso solo a `jhoelproo/Gineco` y permiso **Contents · Read-only**. El administrador de Gineco pega el token en **Actualizaciones → Token de lectura de GitHub → Guardar acceso**. Windows protege la credencial para esa cuenta. Cuando expire, reemplázala en el mismo campo. [Crear un token de acceso detallado](https://github.com/settings/personal-access-tokens/new)
+
+Gineco comprueba la versión al entrar a **Historias clínicas**. Si hay una nueva publicación, pulsa **Actualización disponible → Instalar y reiniciar**. También puedes usar **Buscar ahora**. Guarda y cierra cualquier historia abierta antes de actualizar.
+
+### Publicar una versión nueva
+
+Sube el número de versión en `escritorio/Gineco.csproj` y ejecuta `./escritorio/Empaquetar.ps1` con el SDK de .NET 10. En la publicación de GitHub de esa versión, adjunta `HospitalContreras.Gineco-win-Setup.exe`, `releases.win.json` y todos los `.nupkg` referenciados por el manifiesto que generó Velopack. Publica el instalador y el manifiesto juntos en la misma etiqueta. El repositorio permanece privado.

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Data.Sqlite;
+using Velopack;
 
 namespace Gineco;
 
@@ -8,13 +9,14 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        VelopackApp.Build().SetAutoApplyOnStartup(false).Run();
         ApplicationConfiguration.Initialize();
         try
         {
             var carpeta = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Gineco");
             Directory.CreateDirectory(carpeta);
             using var archivo = new Archivo(Path.Combine(carpeta, "historias.sqlite3"));
-            Iniciar(archivo);
+            Iniciar(archivo, new Actualizaciones(carpeta));
         }
         catch (Exception error) when (error is IOException or SqliteException or UnauthorizedAccessException)
         {
@@ -22,7 +24,7 @@ internal static class Program
         }
     }
 
-    private static void Iniciar(Archivo archivo)
+    private static void Iniciar(Archivo archivo, Actualizaciones actualizaciones)
     {
         if (archivo.SinCuentas())
         {
@@ -36,7 +38,7 @@ internal static class Program
             var usuario = archivo.Entrar(acceso.Exequatur, acceso.Nombre, acceso.Clave);
             if (usuario is not null)
             {
-                Application.Run(new Historias(archivo, usuario, EnlaceAdmision.DesdeEstacion));
+                Application.Run(new Historias(archivo, usuario, EnlaceAdmision.DesdeEstacion, actualizaciones: actualizaciones));
                 return;
             }
             MessageBox.Show("El nombre, exequátur o contraseña no coincide.", Clinica.Titulo);
@@ -174,7 +176,7 @@ internal sealed partial class Historias : Form
     private List<Atencion> atenciones = [];
 
     internal Historias(Archivo archivo, Medico usuario, Func<HttpClient?>? conectar = null,
-        System.Drawing.Printing.PrinterSettings? impresora = null)
+        System.Drawing.Printing.PrinterSettings? impresora = null, IActualizaciones? actualizaciones = null)
     {
         this.archivo = archivo;
         this.usuario = usuario;
@@ -219,6 +221,7 @@ internal sealed partial class Historias : Form
         pie.Controls.Add(abrir);
         pie.Controls.Add(imprimir);
         pie.Controls.Add(exportar);
+        if (actualizaciones is not null) PrepararActualizaciones(pie, actualizaciones);
         abrir.Click += (_, _) => AbrirSeleccion();
         imprimir.Click += (_, _) => { if (Seleccion?.Atencion is { } a) Imprimir(a); };
         exportar.Click += (_, _) => { if (Seleccion?.Atencion is { } a) Exportar(a); };
