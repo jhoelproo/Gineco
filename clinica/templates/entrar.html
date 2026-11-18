@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block titulo %}Iniciar sesión{% endblock %}
+{% block contenido %}
+<section class="panel acceso">
+<h1>Iniciar sesión</h1>
+<p>Acceso para personal médico autorizado.</p>
+<form method="post">
+{% csrf_token %}
+{{ form.non_field_errors }}
+<div class="campos">{{ form.nombre.as_field_group }}{{ form.username.as_field_group }}{{ form.password.as_field_group }}</div>
+<input type="hidden" name="next" value="{{ next }}">
+<button>Entrar</button>
+</form>
+</section>
+{% endblock %}

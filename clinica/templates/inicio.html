@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block contenido %}
+<div class="encabezado">
+<div><h1>Historial de atenciones</h1><p>{{ user.get_full_name }} · Exequátur {{ user.username }}</p></div>
+<a class="boton" href="{% url 'nueva' %}">Nueva historia clínica</a>
+</div>
+<section class="panel">
+<form class="filtros" method="get" role="search">
+<div><label for="q">Buscar paciente</label><input id="q" name="q" value="{{ consulta }}" placeholder="Nombre o cédula"></div>
+<div><label for="estado">Estado</label><select id="estado" name="estado"><option value="">Todas</option><option value="pendientes" {% if pendientes %}selected{% endif %}>Pendientes de completar</option></select></div>
+<button>Buscar</button>
+</form>
+<ul class="historias">
+{% for atencion in pagina %}
+<li><div><strong>{{ atencion.identificacion.nombre }}</strong><small>{{ atencion.fecha|date:"d/m/Y H:i" }} · {% if atencion.finalizada %}Finalizada{% else %}Borrador{% endif %}</small></div>
+<div class="acciones">
+<a href="{% url 'historia' atencion.pk %}">Abrir historia</a>
+<a href="{% url 'documento' atencion.pk %}">Ver PDF</a>
+<a href="{% url 'reutilizar' atencion.pk %}">Nueva atención</a>
+</div></li>
+{% empty %}
+<li>No hay atenciones para esta búsqueda.</li>
+{% endfor %}
+</ul>
+{% if pagina.has_other_pages %}
+<nav aria-label="Páginas del historial">
+{% if pagina.has_previous %}<a href="{% querystring p=pagina.previous_page_number %}">Anterior</a>{% endif %}
+<span>Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+{% if pagina.has_next %}<a href="{% querystring p=pagina.next_page_number %}">Siguiente</a>{% endif %}
+</nav>
+{% endif %}
+</section>
+{% endblock %}

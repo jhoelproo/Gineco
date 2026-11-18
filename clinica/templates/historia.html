@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block titulo %}Registro clínico{% endblock %}
+{% block contenido %}
+<a href="{% url 'inicio' %}">Volver al historial</a>
+<div class="encabezado">
+<div><h1>{{ atencion.identificacion.nombre }}</h1><p>{{ atencion.fecha|date:"d/m/Y H:i" }} · {% if atencion.finalizada %}Historia finalizada{% else %}Borrador{% endif %}</p></div>
+<div class="acciones"><a href="{% url 'documento' atencion.pk %}" target="_blank" rel="noopener">Vista previa del PDF</a><a href="{% url 'documento' atencion.pk %}?descargar=1">Descargar PDF</a></div>
+</div>
+<form method="post" data-cambios>
+{% csrf_token %}
+{{ formulario.version }}{{ formulario.version.errors }}{{ formulario.non_field_errors }}
+<div class="panel rejilla">
+<div>{{ formulario.fecha.as_field_group }}</div>
+</div>
+<div class="editor">
+<nav class="secciones" aria-label="Secciones clínicas">
+{% for titulo, campos in formulario.secciones %}<a href="#seccion-{{ forloop.counter }}">{{ titulo }}</a>{% endfor %}
+</nav>
+<div class="clinica">
+{% for titulo, campos in formulario.secciones %}
+<details class="panel" id="seccion-{{ forloop.counter }}" {% if forloop.first or formulario.errors %}open{% endif %}>
+<summary>{{ titulo }}</summary>
+<div class="{% if titulo == 'Signos vitales' %}rejilla{% else %}campos{% endif %}">
+{% for campo in campos %}<div>{{ campo.as_field_group }}</div>{% endfor %}
+</div>
+</details>
+{% endfor %}
+<div class="panel acciones">
+{% if atencion.finalizada %}
+<div class="motivo">{{ formulario.motivo_correccion.as_field_group }}</div>
+<button name="accion" value="corrección">Registrar corrección</button>
+{% else %}
+<button class="secundario" name="accion" value="borrador">Guardar borrador</button>
+<button name="accion" value="finalización">Finalizar historia</button>
+{% endif %}
+</div>
+</div>
+</div>
+</form>
+{% endblock %}

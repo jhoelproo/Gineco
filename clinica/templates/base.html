@@ -1,0 +1,25 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>{% block titulo %}Emergencia ginecológica{% endblock %} | Hospital Dr. Ángel Contreras</title>
+<link rel="stylesheet" href="{% static 'clinica.css' %}">
+<script src="{% static 'clinica.js' %}" defer></script>
+</head>
+<body>
+<a class="skip" href="#contenido">Ir al contenido</a>
+<header><div class="marco cabecera">
+  <a class="marca" href="{% url 'inicio' %}"><span aria-hidden="true">+</span><div>Hospital Dr. Ángel Contreras<small>Emergencia ginecológica</small></div></a>
+  {% if user.is_authenticated %}
+  <nav aria-label="Cuenta">
+    {% if user.is_superuser %}<a href="{% url 'admin:clinica_medico_changelist' %}">Cuentas médicas</a>{% endif %}
+    <form method="post" action="{% url 'salir' %}">{% csrf_token %}<button class="secundario">Cerrar sesión</button></form>
+  </nav>
+  {% endif %}
+</div></header>
+<main class="marco" id="contenido">{% block contenido %}{% endblock %}</main>
+</body>
+</html>

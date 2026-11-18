@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block titulo %}Nueva historia clínica{% endblock %}
+{% block contenido %}
+<a href="{% url 'inicio' %}">Volver al historial</a>
+<h1>Nueva historia clínica</h1>
+<form class="panel" method="post" data-cambios>
+{% csrf_token %}
+<h2>Identificación de la paciente</h2>
+{{ formulario.non_field_errors }}
+<div class="rejilla">
+{% for campo in formulario %}<div>{{ campo.as_field_group }}</div>{% endfor %}
+</div>
+{% if paciente %}<label class="confirmacion"><input name="identidad" type="checkbox" value="confirmada" required> Confirmé la identidad de la paciente.</label>{% endif %}
+<button>Continuar al registro clínico</button>
+</form>
+{% endblock %}
