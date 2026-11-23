@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('admision','consulta')][string]$Funcion,
+    [Parameter(Mandatory)][ValidateSet('admision','consulta','consulta_admin')][string]$Funcion,
     [ValidatePattern('^[a-z0-9]{20}$')][string]$Proyecto = 'agnhgwtmczrtuqlsuefx',
     [ValidatePattern('^sb_publishable_[a-zA-Z0-9_-]+$')][string]$ClavePublica = 'sb_publishable_SLBaZpWFq-7RnF3CNYsi7w_dNgcf-pO'
 )
@@ -24,4 +24,8 @@ $sha = [Security.Cryptography.SHA256]::Create()
 try {
     $huella = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($token))).Replace('-','')
 } finally { $sha.Dispose() }
-"insert into gineco_privado.estacion(huella,funcion) values (decode('$huella','hex'),'$Funcion') on conflict do nothing;"
+if ($Funcion -eq 'consulta_admin') {
+    "insert into gineco_privado.estacion_retiro(huella) values (decode('$huella','hex')) on conflict do nothing;"
+} else {
+    "insert into gineco_privado.estacion(huella,funcion) values (decode('$huella','hex'),'$Funcion') on conflict do nothing;"
+}

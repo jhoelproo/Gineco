@@ -64,7 +64,8 @@ public sealed class PerfilesClinicos
                 var historia = Assert.Single(archivo.Listar(medica));
                 Assert.Equal(perfil.Id, historia.Perfil!.Id);
                 Assert.Equal("Base original", historia.Perfil.Predeterminados["motivo"]);
-                archivo.Guardar(medica, historia, historia, "");
+                Assert.Empty(archivo.LeerPropuestas(admin, perfil.Id));
+                archivo.Guardar(medica, historia with { Finalizada = true }, historia, "");
                 var propuesta = Assert.Single(archivo.LeerPropuestas(admin, perfil.Id));
                 Assert.Equal("motivo", propuesta.Campo);
                 Assert.Equal(1, propuesta.Historias);
@@ -134,15 +135,15 @@ public sealed class PerfilesClinicos
         var historia = Assert.Single(archivo.Listar(admin));
         archivo.GuardarPerfil(admin, perfil with { Version = 1, Campos = new() { ["motivo"] = "Base nueva" } });
         Assert.True(Perfiles.EsPredeterminado(historia, "motivo"));
-        archivo.Guardar(admin, historia with { Campos = new(historia.Campos) { ["motivo"] = "Edición uno" } }, historia, "");
+        archivo.Guardar(admin, historia with { Finalizada = true, Campos = new(historia.Campos) { ["motivo"] = "Edición uno" } }, historia, "");
         historia = Assert.Single(archivo.Listar(admin));
         Assert.Equal("Edición uno", Assert.Single(archivo.LeerPropuestas(admin, perfil.Id)).Texto);
-        archivo.Guardar(admin, historia with { Campos = new(historia.Campos) { ["motivo"] = "Edición dos" } }, historia, "");
+        archivo.Guardar(admin, historia with { Campos = new(historia.Campos) { ["motivo"] = "Edición dos" } }, historia, "Corrección de prueba");
         Assert.Equal("Edición dos", Assert.Single(archivo.LeerPropuestas(admin, perfil.Id)).Texto);
-        Assert.Throws<InvalidOperationException>(() => archivo.Guardar(admin, historia, historia, ""));
+        Assert.Throws<InvalidOperationException>(() => archivo.Guardar(admin, historia, historia, "Corrección de prueba"));
         Assert.Equal("Edición dos", Assert.Single(archivo.LeerPropuestas(admin, perfil.Id)).Texto);
         historia = Assert.Single(archivo.Listar(admin));
-        archivo.Guardar(admin, historia with { Campos = new(historia.Campos) { ["motivo"] = "" } }, historia, "");
+        archivo.Guardar(admin, historia with { Campos = new(historia.Campos) { ["motivo"] = "" } }, historia, "Corrección de prueba");
         Assert.Empty(archivo.LeerPropuestas(admin, perfil.Id));
     }
 

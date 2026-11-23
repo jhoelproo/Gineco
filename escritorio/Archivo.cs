@@ -9,6 +9,9 @@ internal sealed partial class Archivo : IDisposable
     internal const int MinimoClave = 6;
     private const int Iteraciones = 600_000;
     private readonly SqliteConnection conexion;
+    private Medico? sesionCompartida;
+
+    internal void EstablecerSesionCompartida(Medico? medico) => sesionCompartida = medico;
 
     static Archivo() => SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_winsqlite3());
 
@@ -124,7 +127,7 @@ internal sealed partial class Archivo : IDisposable
             SELECT id,responsable,nombre_medico,fecha,campos,finalizada,version,
                 EXISTS(SELECT 1 FROM impresion_historia i WHERE i.historia=atencion.id AND i.version=atencion.version)
             FROM atencion
-            WHERE (responsable=$autor OR $admin=1 OR id IN (SELECT historia FROM derivacion))
+            WHERE (responsable=$autor COLLATE NOCASE OR $admin=1 OR id IN (SELECT historia FROM derivacion))
               AND NOT EXISTS (SELECT 1 FROM retiro_historia r WHERE r.historia=atencion.id)
               AND NOT EXISTS (SELECT 1 FROM retiro_derivacion r JOIN derivacion d ON d.id=r.derivacion WHERE d.historia=atencion.id)
             ORDER BY fecha DESC,id DESC
@@ -182,7 +185,7 @@ internal sealed partial class Archivo : IDisposable
             UPDATE atencion SET fecha=$fecha,campos=$campos,finalizada=$finalizada,version=version+1,
                 responsable=CASE WHEN finalizada=0 AND id IN (SELECT historia FROM derivacion) THEN $autor ELSE responsable END,
                 nombre_medico=CASE WHEN finalizada=0 AND id IN (SELECT historia FROM derivacion) THEN $nombre ELSE nombre_medico END
-            WHERE id=$id AND version=$version AND (responsable=$autor OR $admin=1 OR id IN (SELECT historia FROM derivacion))
+            WHERE id=$id AND version=$version AND (responsable=$autor COLLATE NOCASE OR $admin=1 OR id IN (SELECT historia FROM derivacion))
               AND NOT EXISTS (SELECT 1 FROM retiro_historia r WHERE r.historia=$id)
               AND NOT EXISTS (SELECT 1 FROM retiro_derivacion r JOIN derivacion d ON d.id=r.derivacion WHERE d.historia=$id)
             """, transaccion, ("$id", anterior.Id), ("$version", anterior.Version), ("$autor", autor.Exequatur),

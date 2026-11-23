@@ -33,6 +33,9 @@ public sealed class CambiosClinicos
             .ToDictionary(campo => campo.Key, _ => "Dato ficticio");
         campos["nombre"] = "Paciente de demostración";
         campos["pruebas"] = new AnalisisLaboratorio(AnalisisLaboratorio.Opciones, "Perfil renal").Guardar();
+        campos["diagnosticos"] = "Diagnóstico principal de demostración\nDiagnóstico adicional de demostración";
+        campos["sonografias"] = "Sonografía de demostración";
+        campos["alergias"] = "Sí";
         var historia = new Atencion(1, new("01", "Dra. de demostración", false),
             new DateTime(2026, 11, 15, 12, 20, 0), campos, true);
         string ruta = Path.GetTempFileName();
@@ -41,7 +44,38 @@ public sealed class CambiosClinicos
             Informe.Exportar(historia, ruta);
             using var pdf = PdfReader.Open(ruta, PdfDocumentOpenMode.Import);
             Assert.Equal(1, pdf.PageCount);
+            Assert.Equal(612, pdf.Pages[0].Width.Point, 1);
+            Assert.Equal(792, pdf.Pages[0].Height.Point, 1);
             var muestra = Environment.GetEnvironmentVariable("GINECO_PDF_BREVE_QA");
+            if (muestra is not null) File.Copy(ruta, muestra, overwrite: true);
+        }
+        finally { File.Delete(ruta); }
+    }
+
+    [Fact]
+    public void HistoriaLargaContinuaSinPerderPaginaCartaNiEncabezados()
+    {
+        var historia = new Atencion(1, new("01", "Médica de demostración", false), new DateTime(2026, 11, 15),
+            new()
+            {
+                ["nombre"] = "Paciente de demostración",
+                ["diagnosticos"] = string.Join("\n", Enumerable.Range(1, 65).Select(numero => $"Diagnóstico de demostración {numero}")),
+                ["sonografias"] = "Sonografía de demostración"
+            }, true);
+        string ruta = Path.GetTempFileName();
+        try
+        {
+            Informe.Exportar(historia, ruta);
+            using var pdf = PdfReader.Open(ruta, PdfDocumentOpenMode.Import);
+            Assert.True(pdf.PageCount > 1);
+            foreach (var pagina in pdf.Pages)
+            {
+                Assert.Equal(612, pagina.Width.Point, 1);
+                Assert.Equal(792, pagina.Height.Point, 1);
+                var recursos = pagina.Elements.GetDictionary("/Resources");
+                Assert.Equal(2, recursos!.Elements.GetDictionary("/XObject")!.Elements.Count);
+            }
+            var muestra = Environment.GetEnvironmentVariable("GINECO_PDF_LARGO_QA");
             if (muestra is not null) File.Copy(ruta, muestra, overwrite: true);
         }
         finally { File.Delete(ruta); }

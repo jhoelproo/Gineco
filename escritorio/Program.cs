@@ -9,14 +9,15 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
-        VelopackApp.Build().SetAutoApplyOnStartup(false).Run();
+        VelopackApp.Build().Run();
         ApplicationConfiguration.Initialize();
         try
         {
             var carpeta = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Gineco");
             Directory.CreateDirectory(carpeta);
             using var archivo = new Archivo(Path.Combine(carpeta, "historias.sqlite3"));
-            Iniciar(archivo, new Actualizaciones());
+            using var cuentas = CuentasCompartidas.DelHospital();
+            IniciarCompartido(archivo, new Actualizaciones(), cuentas, Path.Combine(carpeta, "vinculo-cuentas.dat"), EnlaceAdmision.DesdeEstacion);
         }
         catch (Exception error) when (error is IOException or SqliteException or UnauthorizedAccessException)
         {
@@ -24,7 +25,27 @@ internal static class Program
         }
     }
 
-    private static void Iniciar(Archivo archivo, Actualizaciones actualizaciones)
+    internal static void IniciarCompartido(Archivo archivo, IActualizaciones? actualizaciones, CuentasCompartidas cuentas,
+        string? vinculo = null, Func<HttpClient?>? conectar = null)
+    {
+        while (true)
+        {
+            using var acceso = new AccesoCompartido(cuentas, archivo, vinculo);
+            acceso.ShowDialog();
+            if (acceso.UsarCuentaLocal) { Iniciar(archivo, actualizaciones, conectar); return; }
+            if (acceso.Sesion is not { } sesion) return;
+            archivo.EstablecerSesionCompartida(sesion.Medico);
+            try
+            {
+                using var historias = new Historias(archivo, sesion.Medico, conectar, actualizaciones: actualizaciones, cuentasCompartidas: cuentas);
+                Application.Run(historias);
+                if (!historias.CambioDeMedico) return;
+            }
+            finally { archivo.EstablecerSesionCompartida(null); }
+        }
+    }
+
+    internal static void Iniciar(Archivo archivo, IActualizaciones? actualizaciones, Func<HttpClient?>? conectar = null)
     {
         if (archivo.SinCuentas())
         {
@@ -32,14 +53,17 @@ internal static class Program
             if (alta.ShowDialog() != DialogResult.OK) return;
             archivo.Alta(null, alta.Exequatur, alta.Nombre, alta.Clave);
         }
-        using var acceso = new Cuenta("Iniciar sesión", archivo);
-        while (acceso.ShowDialog() == DialogResult.OK)
+        while (true)
         {
+            using var acceso = new Cuenta("Iniciar sesión", archivo);
+            if (acceso.ShowDialog() != DialogResult.OK) return;
             var usuario = archivo.Entrar(acceso.Exequatur, acceso.Nombre, acceso.Clave);
             if (usuario is not null)
             {
-                Application.Run(new Historias(archivo, usuario, EnlaceAdmision.DesdeEstacion, actualizaciones: actualizaciones));
-                return;
+                using var historias = new Historias(archivo, usuario, conectar, actualizaciones: actualizaciones);
+                Application.Run(historias);
+                if (!historias.CambioDeMedico) return;
+                continue;
             }
             MessageBox.Show("El nombre, exequátur o contraseña no coincide.", Clinica.Titulo);
         }
@@ -62,6 +86,9 @@ internal sealed class Cuenta : Form
         Text = titulo;
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(430, 445);
+        nombre.Name = "nombreCuenta";
+        exequatur.Name = "exequaturCuenta";
+        clave.Name = "claveCuenta";
         var campos = Estilo.Columna();
         campos.Controls.Add(Estilo.Texto(titulo, 23, true));
         FlowLayoutPanel? navegacion = archivo is null ? null : CrearNavegacion(archivo);
@@ -155,6 +182,7 @@ internal sealed partial class Historias : Form
 {
     private readonly Archivo archivo;
     private readonly Medico usuario;
+    private readonly CuentasCompartidas? cuentasCompartidas;
     private readonly DataGridView lista = new()
     {
         Dock = DockStyle.Fill,
@@ -175,12 +203,15 @@ internal sealed partial class Historias : Form
     private readonly Button retirar = Estilo.Boton("Eliminar del listado");
     private readonly TextBox buscar = new() { PlaceholderText = "Buscar por nombre o cédula", Width = 240 };
     private List<Atencion> atenciones = [];
+    internal bool CambioDeMedico { get; private set; }
 
     internal Historias(Archivo archivo, Medico usuario, Func<HttpClient?>? conectar = null,
-        System.Drawing.Printing.PrinterSettings? impresora = null, IActualizaciones? actualizaciones = null)
+        System.Drawing.Printing.PrinterSettings? impresora = null, IActualizaciones? actualizaciones = null,
+        CuentasCompartidas? cuentasCompartidas = null)
     {
         this.archivo = archivo;
         this.usuario = usuario;
+        this.cuentasCompartidas = cuentasCompartidas;
         this.impresora = impresora;
         Estilo.Ventana(this);
         Text = "Historias clínicas";
@@ -202,20 +233,17 @@ internal sealed partial class Historias : Form
         cabecera.Controls.Add(Estilo.Texto("Historias clínicas", 26, true));
         var acciones = Estilo.Barra(DockStyle.Top);
         Accion(acciones, "Nueva historia", () => Editar(null), Estilo.Principal);
+        Accion(acciones, "Cambiar médico", () => { CambioDeMedico = true; Close(); });
+        Button? configuracion = null;
         if (usuario.Administrador)
         {
-            Accion(acciones, "Alta médica", Alta);
-            Accion(acciones, "Configuración", Configurar);
+            var alta = Estilo.Boton("Registrar médico");
+            alta.Click += async (_, _) => await Alta(alta);
+            acciones.Controls.Add(alta);
+            configuracion = Estilo.Boton("Configuración");
+            configuracion.Click += (_, _) => Configurar();
         }
-        buscar.Width = 245;
-        buscar.AccessibleName = "Buscar paciente por nombre o cédula";
-        var rotuloBusqueda = Estilo.Texto("Buscar paciente", 11, true);
-        rotuloBusqueda.Margin = new Padding(18, 12, 4, 0);
-        var busqueda = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
-        busqueda.Controls.Add(rotuloBusqueda);
-        buscar.Margin = new Padding(2, 10, 0, 0);
-        busqueda.Controls.Add(buscar);
-        acciones.Controls.Add(busqueda);
+        var barraSuperior = CrearBarraSuperior(acciones, configuracion);
         var pie = Estilo.Barra(DockStyle.Bottom);
         resultados.Margin = new Padding(0, 12, 18, 0);
         pie.Controls.Add(resultados);
@@ -242,7 +270,7 @@ internal sealed partial class Historias : Form
         Controls.Add(marco);
         Controls.Add(CrearFiltros());
         Controls.Add(pie);
-        Controls.Add(acciones);
+        Controls.Add(barraSuperior);
         Controls.Add(cabecera);
         PrepararRecepcion(cabecera, conectar);
         Recargar();
@@ -331,9 +359,10 @@ internal sealed partial class Historias : Form
         }
     }
 
-    private void Editar(Atencion? atencion)
+    private void Editar(Atencion? atencion, string? revisarCampo = null)
     {
         using var editor = new Editor(archivo, usuario, atencion, imprimirAlFinalizar: true);
+        if (revisarCampo is not null) editor.Shown += (_, _) => editor.EnfocarCampo(revisarCampo);
         var resultado = editor.ShowDialog(this);
         Recargar();
         if (resultado == DialogResult.OK && editor.SolicitaImpresion &&
@@ -351,7 +380,22 @@ internal sealed partial class Historias : Form
         catch (InvalidOperationException error) { MessageBox.Show(this, error.Message); }
     }
 
-    private void Alta()
+    private async Task Alta(Button boton)
+    {
+        boton.Enabled = false;
+        try
+        {
+            if (cuentasCompartidas is null) AltaLocal();
+            else if (await GestionarCuentaCompartida.Registrar(this, cuentasCompartidas, cierre.Token) && !IsDisposed)
+                resultados.Text = "Cuenta registrada. Ya se puede usar en otra computadora.";
+        }
+        catch (InvalidOperationException error) { MessageBox.Show(this, error.Message, Text); }
+        catch (Exception error) when (GestionarCuentaCompartida.FalloDeConexion(error))
+        { if (!IsDisposed) MessageBox.Show(this, "Comprueba la conexión y vuelve a intentarlo.", Text); }
+        finally { if (!IsDisposed) boton.Enabled = true; }
+    }
+
+    private void AltaLocal()
     {
         using var alta = new Cuenta("Alta de médico");
         if (alta.ShowDialog(this) != DialogResult.OK) return;
@@ -363,11 +407,11 @@ internal sealed partial class Historias : Form
     private void Exportar(Atencion atencion)
     {
         var preparada = archivo.PrepararExportacion(atencion);
-        if (preparada.Avisos.Count > 0 || preparada.Correcciones.Count > 0)
+        if (preparada.Revisiones.Count > 0 || preparada.Correcciones.Count > 0)
         {
             using var revision = new RevisionExportacion(preparada);
             var respuesta = revision.ShowDialog(this);
-            if (respuesta == DialogResult.Retry) Editar(atencion);
+            if (respuesta == DialogResult.Retry) Editar(atencion, revision.CampoParaRevisar);
             if (respuesta != DialogResult.OK) return;
         }
         using var selector = new SaveFileDialog { Filter = "Documento PDF (*.pdf)|*.pdf", FileName = $"Historia-{atencion.Id}.pdf" };

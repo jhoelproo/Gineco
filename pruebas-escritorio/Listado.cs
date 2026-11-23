@@ -63,6 +63,15 @@ public sealed class Listado
         Assert.Empty(consulta.CambiosPendientes());
         otra.Recibir([derivacion, reingreso]);
         Assert.Equal(2, otra.Bandeja().Count);
+        Assert.Equal(derivacion.Id, Assert.Single(consulta.RetirosPendientes()));
+        var retiro = new RetiroCompartido(derivacion.Id, 1);
+        Assert.True(otra.IntegrarRetiros([retiro], []));
+        Assert.False(otra.IntegrarRetiros([retiro], []));
+        Assert.Equal(1, otra.UltimoRetiroRecibido());
+        Assert.Equal(reingreso.Id, Assert.Single(otra.Bandeja()).Id);
+        Assert.Throws<InvalidOperationException>(() => otra.AbrirDerivacion(derivacion.Id, Medica));
+        Assert.False(consulta.IntegrarRetiros([retiro], [derivacion.Id]));
+        Assert.Empty(consulta.RetirosPendientes());
         consulta.Recibir([derivacion]);
         Assert.Equal(reingreso.Id, Assert.Single(consulta.Bandeja()).Id);
 

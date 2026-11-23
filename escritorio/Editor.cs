@@ -40,6 +40,14 @@ internal sealed partial class Editor : Form
     };
     private readonly Label paciente = Estilo.Texto("", 23, true);
     private readonly Label aviso = Estilo.Texto("", 10);
+    private readonly Label estadoPerfil = Estilo.Texto("", 10);
+    private readonly ComboBox navegacionCompacta = new()
+    {
+        Name = "seccionesVentanaReducida",
+        Dock = DockStyle.Top,
+        DropDownStyle = ComboBoxStyle.DropDownList,
+        AccessibleName = "Secciones de la historia en ventana reducida"
+    };
     private readonly DateTimePicker fecha = new()
     {
         Format = DateTimePickerFormat.Custom,
@@ -77,14 +85,20 @@ internal sealed partial class Editor : Form
         CrearPaginas();
 
         var cuerpo = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 0, 14, 0) };
+        var lateral = CrearNavegacion();
+        navegacionCompacta.Items.AddRange(Secciones);
+        navegacionCompacta.SelectedIndexChanged += (_, _) => navegacion.SelectedIndex = navegacionCompacta.SelectedIndex;
         cuerpo.Controls.Add(contenido);
-        cuerpo.Controls.Add(CrearNavegacion());
+        cuerpo.Controls.Add(lateral);
+        cuerpo.Controls.Add(navegacionCompacta);
         Controls.Add(cuerpo);
         Controls.Add(CrearAcciones());
         Controls.Add(CrearCabecera());
         campos["nombre"].TextChanged += (_, _) => ActualizarPaciente();
         ActualizarPaciente();
         navegacion.SelectedIndex = 0;
+        cuerpo.SizeChanged += (_, _) => AjustarNavegacion(cuerpo, lateral);
+        AjustarNavegacion(cuerpo, lateral);
         var rueda = new RuedaDeSeccion(this, () => paginas.FirstOrDefault(pagina => pagina.Visible));
         Application.AddMessageFilter(rueda);
         Disposed += (_, _) => Application.RemoveMessageFilter(rueda);
@@ -116,6 +130,11 @@ internal sealed partial class Editor : Form
         var aplicar = Estilo.Boton("Aplicar perfil");
         aplicar.Click += (_, _) => AplicarPerfil();
         opciones.Controls.Add(aplicar);
+        estadoPerfil.MaximumSize = new Size(265, 0);
+        estadoPerfil.Margin = new Padding(10, 5, 0, 0);
+        opciones.Controls.Add(estadoPerfil);
+        perfil.SelectedIndexChanged += (_, _) => ActualizarEstadoPerfil();
+        ActualizarEstadoPerfil();
         panel.Controls.Add(opciones);
         return panel;
     }
@@ -156,11 +175,29 @@ internal sealed partial class Editor : Form
     {
         int indice = navegacion.SelectedIndex;
         if (indice < 0) return;
+        if (navegacionCompacta.SelectedIndex != indice) navegacionCompacta.SelectedIndex = indice;
         foreach (var pagina in paginas) pagina.Visible = pagina == paginas[indice];
         paginas[indice].BringToFront();
         if (Secciones[indice] == "Manejo de medicamentos") sugerencias?.Actualizar();
         retroceder.Enabled = indice > 0;
         avanzar.Enabled = indice < paginas.Count - 1;
+    }
+
+    private void AjustarNavegacion(Control cuerpo, Control lateral)
+    {
+        bool compacta = cuerpo.ClientSize.Height < navegacion.ItemHeight * Secciones.Length + 30 ||
+            cuerpo.ClientSize.Width < LogicalToDeviceUnits(825);
+        lateral.Visible = !compacta;
+        navegacionCompacta.Visible = compacta;
+    }
+
+    private void ActualizarEstadoPerfil()
+    {
+        var aplicado = perfil.Items.Cast<PerfilClinico>().FirstOrDefault(opcion => opcion.Id == perfilAplicado?.Id);
+        var elegido = perfil.SelectedItem as PerfilClinico;
+        estadoPerfil.Text = aplicado is null ? "Sin perfil aplicado" : $"Aplicado: {aplicado.Nombre}";
+        if (elegido is not null && elegido.Id != aplicado?.Id)
+            estadoPerfil.Text += Environment.NewLine + $"Por aplicar: {elegido.Nombre}";
     }
 
     private void AplicarPerfil()
@@ -174,6 +211,7 @@ internal sealed partial class Editor : Form
         {
             var datos = LeerDatos(false);
             perfilAplicado = Perfiles.Aplicar(elegido, datos, perfilAplicado);
+            ActualizarEstadoPerfil();
             valoresIniciales.Clear();
             foreach (var dato in datos) valoresIniciales.Add(dato.Key, dato.Value);
             int seccion = navegacion.SelectedIndex;
@@ -414,7 +452,7 @@ internal sealed partial class Editor : Form
         barra.Controls.Add(boton);
     }
 
-    private Dictionary<string, string> LeerDatos(bool exigirNombre = true)
+    private Dictionary<string, string> LeerDatos(bool exigirNombre = true, bool validarSignos = true)
     {
         var datos = new Dictionary<string, string>(valoresIniciales);
         foreach (var (clave, campo) in campos) datos[clave] = campo.Text.Trim();
@@ -430,6 +468,7 @@ internal sealed partial class Editor : Form
         foreach (var (clave, entrada) in vitales)
         {
             try { datos[clave] = entrada.Valor(); }
+            catch (ArgumentException) when (!validarSignos) { datos[clave] = ""; }
             catch (ArgumentException)
             {
                 navegacion.SelectedIndex = 3;
@@ -475,6 +514,15 @@ internal sealed partial class Editor : Form
             laboratorios.EnfocarDetalle();
             throw new ArgumentException("Completa el detalle de otros análisis antes de finalizar.");
         }
+    }
+
+    internal void EnfocarCampo(string clave)
+    {
+        var campo = Controls.Find(clave == "pruebas" ? "laboratorios" : clave, true).FirstOrDefault();
+        if (campo is null) return;
+        int indice = paginas.FindIndex(pagina => pagina.Contains(campo));
+        if (indice >= 0) navegacion.SelectedIndex = indice;
+        if (!campo.Focus()) campo.SelectNextControl(null, true, true, true, false);
     }
 
     private void MostrarAviso(string mensaje)

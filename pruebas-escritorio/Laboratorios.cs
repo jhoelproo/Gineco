@@ -49,4 +49,26 @@ public sealed class Laboratorios
                 string.Concat(texto.Elements.Cast<DocumentObject>().OfType<Text>().Select(fragmento => fragmento.Content)) == esperado);
         Assert.True(analisis.Bold);
     }
+
+    [Fact]
+    public void LosDiagnosticosYLasSonografiasResaltanTodasLasLineasRegistradas()
+    {
+        var atencion = new Atencion(1, new Medico("01", "Médica ficticia", false), new DateTime(2026, 11, 15),
+            new()
+            {
+                ["diagnosticos"] = "Diagnóstico A\r\n\r\nDiagnóstico B",
+                ["sonografias"] = "Sonografía A\nSonografía B",
+                ["hallazgos"] = "Hallazgo de referencia"
+            });
+        var parrafos = Informe.CrearDocumento(atencion).Sections[0].Elements.OfType<Paragraph>().ToArray();
+        var resaltados = parrafos.SelectMany(parrafo => parrafo.Elements.OfType<FormattedText>())
+            .Where(texto => texto.Bold).SelectMany(texto => texto.Elements.OfType<Text>()).Select(texto => texto.Content).ToArray();
+        Assert.Contains("Diagnóstico A", resaltados);
+        Assert.Contains("Diagnóstico B", resaltados);
+        Assert.Contains("Sonografía A", resaltados);
+        Assert.Contains("Sonografía B", resaltados);
+        Assert.DoesNotContain("Hallazgo de referencia", resaltados);
+        Assert.DoesNotContain("Sin registrar", resaltados);
+        Assert.DoesNotContain("Diagnósticos (uno por línea): ", resaltados);
+    }
 }

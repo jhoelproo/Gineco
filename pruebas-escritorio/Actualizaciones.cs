@@ -65,7 +65,7 @@ public sealed class PaquetesDeActualizacion
 public sealed partial class Ventanas
 {
     [Fact]
-    public async Task AlAbrirLaBandejaSeAnunciaLaVersionDisponible()
+    public async Task AlAbrirLaBandejaSeDescargaLaVersionSinCerrarLaAplicacion()
     {
         await EnVentana(() =>
         {
@@ -73,8 +73,59 @@ public sealed partial class Ventanas
             var actualizaciones = new ActualizacionesDePrueba();
             using var ventana = new Historias(archivo, new("01", "Médica de prueba", false), actualizaciones: actualizaciones);
             ventana.Show();
-            EsperarHasta(() => Descendientes(ventana).OfType<Button>().Any(b => b.Text == "Actualización disponible"));
+            EsperarHasta(() => Descendientes(ventana).OfType<Button>().Any(b => b.Text == "Actualización lista al reabrir"));
             Assert.Equal(1, actualizaciones.Consultas);
+            Assert.Equal(1, actualizaciones.Descargas);
+            Assert.False(actualizaciones.Aplicada);
+            Assert.True(ventana.Visible);
+        });
+    }
+
+    [Fact]
+    public async Task LaDescargaEnSegundoPlanoOmiteVersionesInexistentesYRespetaElCierre()
+    {
+        var actualizaciones = new ActualizacionesDePrueba { HayNovedad = false };
+        Assert.False(await Historias.PrepararActualizacion(actualizaciones, default));
+        Assert.Equal(0, actualizaciones.Descargas);
+
+        actualizaciones.HayNovedad = true;
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            Historias.PrepararActualizacion(actualizaciones, new CancellationToken(true)));
+        Assert.Equal(0, actualizaciones.Descargas);
+        Assert.False(actualizaciones.Aplicada);
+    }
+
+    [Theory]
+    [InlineData(false, "Actualizaciones")]
+    [InlineData(true, "Actualización disponible")]
+    public async Task LaBandejaOfreceElControlManualSiLaActualizacionNoQuedaLista(bool hayNovedad, string rotulo)
+    {
+        await EnVentana(() =>
+        {
+            using var archivo = new Archivo(":memory:");
+            var actualizaciones = new ActualizacionesDePrueba { HayNovedad = hayNovedad, FallaDescarga = true };
+            using var ventana = new Historias(archivo, new("01", "Médica de prueba", false), actualizaciones: actualizaciones);
+            ventana.Show();
+            EsperarHasta(() => Descendientes(ventana).OfType<Button>().Any(b => b.Enabled && b.Text == rotulo));
+            Assert.Equal(hayNovedad ? 1 : 0, actualizaciones.Descargas);
+            Assert.False(actualizaciones.Aplicada);
+        });
+    }
+
+    [Fact]
+    public async Task CerrarLaBandejaCancelaLaDescargaEnSegundoPlano()
+    {
+        await EnVentana(() =>
+        {
+            using var archivo = new Archivo(":memory:");
+            var descarga = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var actualizaciones = new ActualizacionesDePrueba { DescargaControlada = descarga };
+            using var bandeja = new Historias(archivo, new("01", "Médica de prueba", false), actualizaciones: actualizaciones);
+            bandeja.Show();
+            EsperarHasta(() => actualizaciones.Descargas == 1);
+            bandeja.Close();
+            Assert.True(actualizaciones.Cancelacion.IsCancellationRequested);
+            Assert.False(actualizaciones.Aplicada);
         });
     }
 
@@ -134,8 +185,8 @@ public sealed partial class Ventanas
             var actualizaciones = new ActualizacionesDePrueba();
             using var bandeja = new Historias(archivo, new("01", "Médica de prueba", false), actualizaciones: actualizaciones);
             bandeja.Show();
-            EsperarHasta(() => Descendientes(bandeja).OfType<Button>().Any(b => b.Text == "Actualización disponible"));
-            var boton = Descendientes(bandeja).OfType<Button>().Single(b => b.Text == "Actualización disponible");
+            EsperarHasta(() => Descendientes(bandeja).OfType<Button>().Any(b => b.Text == "Actualización lista al reabrir"));
+            var boton = Descendientes(bandeja).OfType<Button>().Single(b => b.Text == "Actualización lista al reabrir");
             using var decidir = new System.Windows.Forms.Timer { Interval = 10 };
             decidir.Tick += (_, _) =>
             {

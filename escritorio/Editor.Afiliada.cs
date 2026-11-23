@@ -4,6 +4,8 @@ namespace Gineco;
 
 internal sealed partial class Editor
 {
+    private Label? alergiasPrevias;
+    private string referenciaAlergia = "";
     private static readonly string[] DatosReutilizables = ["nombre", "cedula", "nss", "telefono", "ars", "direccion", "nacionalidad"];
     private readonly Dictionary<string, string> valoresImportados = [];
     private bool actualizandoAfiliada;
@@ -22,6 +24,18 @@ internal sealed partial class Editor
         AdaptarAncho(pagina, campos["detalle_alergias"]);
         panel.Visible = alergias.Valor == "Sí";
         alergias.Editada += (_, _) => panel.Visible = alergias.Valor == "Sí";
+        alergiasPrevias = Estilo.Texto(referenciaAlergia, 10);
+        AdaptaReferencia(pagina, alergiasPrevias);
+        alergiasPrevias.ForeColor = Estilo.Secundario;
+        alergiasPrevias.Visible = referenciaAlergia.Length > 0;
+        pagina.Controls.Add(alergiasPrevias);
+    }
+
+    private static void AdaptaReferencia(Control pagina, Label referencia)
+    {
+        void Ajustar() => referencia.MaximumSize = new Size(Math.Max(180, pagina.ClientSize.Width - 70), 0);
+        Ajustar();
+        pagina.SizeChanged += (_, _) => Ajustar();
     }
 
     private void CrearAccionesAfiliada(FlowLayoutPanel pagina)
@@ -54,6 +68,7 @@ internal sealed partial class Editor
             var resultado = archivo.BuscarAfiliada(usuario, ids);
             if (resultado.Conflicto)
             {
+                MostrarAlergiaPrevia(null);
                 MostrarAviso("Los identificadores coinciden con datos de distintas pacientes. Verifica la cédula y el NSS.");
                 return;
             }
@@ -82,7 +97,8 @@ internal sealed partial class Editor
             MostrarAviso("No hay historias anteriores disponibles para estos identificadores.");
             return;
         }
-        using var ventana = new VistaHistorias(historias);
+        var actual = new Atencion(anterior?.Id ?? 0, usuario, fecha.Value, LeerDatos(false, validarSignos: false), false);
+        using var ventana = new VistaHistorias(historias, actual);
         ventana.ShowDialog(this);
     }
 
@@ -92,9 +108,12 @@ internal sealed partial class Editor
         var nombre = campos["nombre"].Text.Trim();
         if (nombre.Length > 0 && !string.Equals(nombre, ultima.Nombre, StringComparison.OrdinalIgnoreCase))
         {
+            MostrarAlergiaPrevia(null);
             MostrarAviso("El nombre escrito no coincide con el registro. Verifica los datos de la afiliada.");
             return;
         }
+        MostrarAlergiaPrevia(resultado.Historias.FirstOrDefault(historia => historia.Id != anterior?.Id &&
+            AlergiasRegistradas.EsRespuestaExplicita(historia.Valor("alergias"))));
         actualizandoAfiliada = true;
         try
         {
@@ -103,15 +122,22 @@ internal sealed partial class Editor
                 var valor = resultado.Historias.Select(historia => historia.Valor(clave)).FirstOrDefault(texto => texto.Length > 0);
                 Importar(clave, valor ?? "");
             }
-            if (anterior is null && resultado.UltimaAlergia is Atencion previa && selecciones["alergias"].Valor.Length == 0)
-            {
-                var alergias = AlergiasRegistradas.Leer(previa.Valor("alergias"), previa.Valor("detalle_alergias"));
-                selecciones["alergias"].Elegir(alergias.Respuesta);
-                valoresImportados["alergias"] = alergias.Respuesta;
-                Importar("detalle_alergias", alergias.Detalle);
-            }
         }
         finally { actualizandoAfiliada = false; }
+    }
+
+    private void MostrarAlergiaPrevia(Atencion? previa)
+    {
+        referenciaAlergia = "";
+        if (previa is not null)
+        {
+            var alergia = AlergiasRegistradas.Leer(previa.Valor("alergias"), previa.Valor("detalle_alergias"));
+            string detalle = alergia.Detalle.Length == 0 ? "" : $" · {alergia.Detalle}";
+            referenciaAlergia = $"Referencia del {previa.Fecha:dd/MM/yyyy}: {alergia.Respuesta}{detalle}";
+        }
+        if (alergiasPrevias is null) return;
+        alergiasPrevias.Text = referenciaAlergia;
+        alergiasPrevias.Visible = referenciaAlergia.Length > 0;
     }
 
     private void Importar(string clave, string valor)
@@ -123,19 +149,16 @@ internal sealed partial class Editor
 
     private void LimpiarImportacion(string editado)
     {
-        if (actualizandoAfiliada || valoresImportados.Count == 0) return;
+        if (actualizandoAfiliada) return;
+        MostrarAlergiaPrevia(null);
+        if (valoresImportados.Count == 0) return;
         actualizandoAfiliada = true;
         try
         {
             foreach (var (clave, valor) in valoresImportados)
             {
                 if (clave == editado) continue;
-                if (clave == "alergias")
-                {
-                    if (selecciones["alergias"].Valor == valor) selecciones["alergias"].Elegir("");
-                }
-                else if (campos[clave].Text == valor)
-                    campos[clave].Clear();
+                if (campos[clave].Text == valor) campos[clave].Clear();
             }
             valoresImportados.Clear();
         }

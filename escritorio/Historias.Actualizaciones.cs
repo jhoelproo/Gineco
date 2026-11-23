@@ -6,11 +6,12 @@ internal sealed partial class Historias
     {
         var boton = Estilo.Boton("Actualizaciones");
         pie.Controls.Add(boton);
+        bool listaAlReabrir = false;
         boton.Click += (_, _) =>
         {
             using var ventana = new VentanaActualizaciones(actualizaciones);
             if (ventana.ShowDialog(this) == DialogResult.OK) Close();
-            else boton.Text = TituloActualizaciones(actualizaciones);
+            else boton.Text = TituloActualizaciones(actualizaciones, listaAlReabrir);
         };
         Shown += async (_, _) =>
         {
@@ -18,16 +19,31 @@ internal sealed partial class Historias
             boton.Enabled = false;
             try
             {
-                await actualizaciones.Buscar();
-                if (!IsDisposed) boton.Text = TituloActualizaciones(actualizaciones);
+                listaAlReabrir = await PrepararActualizacion(actualizaciones, cierre.Token);
             }
             catch (Exception) { }
-            finally { if (!IsDisposed) boton.Enabled = true; }
+            finally
+            {
+                if (!IsDisposed)
+                {
+                    boton.Text = TituloActualizaciones(actualizaciones, listaAlReabrir);
+                    boton.Enabled = true;
+                }
+            }
         };
     }
 
-    private static string TituloActualizaciones(IActualizaciones actualizaciones) =>
-        actualizaciones.Disponible is null ? "Actualizaciones" : "Actualización disponible";
+    internal static async Task<bool> PrepararActualizacion(IActualizaciones actualizaciones, CancellationToken cancelacion)
+    {
+        await actualizaciones.Buscar();
+        cancelacion.ThrowIfCancellationRequested();
+        if (actualizaciones.Disponible is null) return false;
+        await actualizaciones.Descargar(_ => { }, cancelacion);
+        return true;
+    }
+
+    private static string TituloActualizaciones(IActualizaciones actualizaciones, bool listaAlReabrir) => listaAlReabrir
+        ? "Actualización lista al reabrir" : actualizaciones.Disponible is null ? "Actualizaciones" : "Actualización disponible";
 }
 
 internal sealed class VentanaActualizaciones : Form

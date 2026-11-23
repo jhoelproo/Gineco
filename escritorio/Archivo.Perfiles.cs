@@ -27,10 +27,16 @@ internal sealed partial class Archivo
 
     internal void ExigirAdministrador(Medico usuario, SqliteTransaction? transaccion = null)
     {
+        const string error = "Solo un administrador activo puede abrir o modificar la configuración.";
+        if (sesionCompartida is not null)
+        {
+            if (ReferenceEquals(sesionCompartida, usuario) && usuario.Administrador) return;
+            throw new InvalidOperationException(error);
+        }
         using var comando = Comando("SELECT COUNT(*) FROM medico WHERE exequatur=$id AND admin=1 AND activo=1",
             transaccion, ("$id", usuario.Exequatur));
         if ((long)comando.ExecuteScalar()! != 1)
-            throw new InvalidOperationException("Solo un administrador activo puede abrir o modificar la configuración.");
+            throw new InvalidOperationException(error);
     }
 
     internal List<PerfilClinico> LeerPerfiles()
@@ -110,7 +116,7 @@ internal sealed partial class Archivo
     }
 
     internal ExportacionPreparada PrepararExportacion(Atencion atencion) =>
-        Ortografia.Preparar(atencion, LeerCorrecciones());
+        Ortografia.Preparar(atencion, LeerCorrecciones(), OrtografiaAutomatica.Sugerir);
 
     private Dictionary<long, PerfilAplicado> LeerPerfilesDeHistorias()
     {
@@ -132,6 +138,7 @@ internal sealed partial class Archivo
             ON CONFLICT(atencion) DO UPDATE SET datos=excluded.datos
             """, transaccion, ("$id", id), ("$datos", JsonSerializer.Serialize(actual.Perfil)));
         guardar.ExecuteNonQuery();
+        if (!actual.Finalizada) return;
         foreach (var clave in Perfiles.CamposClinicos.Keys.Where(Perfiles.EsTextoLibre))
         {
             string valor = actual.Valor(clave).Trim();
@@ -146,7 +153,9 @@ internal sealed partial class Archivo
     {
         ExigirAdministrador(usuario);
         using var comando = Comando("""
-            SELECT campo,texto,COUNT(*) FROM propuesta WHERE perfil=$perfil AND campo<>'manejo' GROUP BY campo,texto ORDER BY COUNT(*) DESC,campo,texto
+            SELECT p.campo,p.texto,COUNT(*) FROM propuesta p JOIN atencion a ON a.id=p.atencion
+            WHERE p.perfil=$perfil AND p.campo<>'manejo' AND a.finalizada=1
+            GROUP BY p.campo,p.texto ORDER BY COUNT(*) DESC,p.campo,p.texto
             """, null, ("$perfil", perfil));
         using var lector = comando.ExecuteReader();
         var propuestas = new List<Propuesta>();

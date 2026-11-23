@@ -5,6 +5,63 @@ internal sealed partial class Historias
     private readonly List<(EstadoConsulta? Estado, string Nombre, RadioButton Boton)> filtros = [];
     private List<FilaHistoria> filasBandeja = [];
     private EstadoConsulta? estadoSeleccionado = EstadoConsulta.Pendiente;
+    private readonly Button buscarEnTodas = Estilo.Boton("Buscar en todas");
+
+    private Control CrearBarraSuperior(Control acciones, Button? configuracion)
+    {
+        var barra = new TableLayoutPanel
+        {
+            Name = "barraSuperior",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = Estilo.Papel,
+            Padding = new Padding(0, 0, 16, 0)
+        };
+        barra.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        barra.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        barra.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        acciones.Dock = DockStyle.Fill;
+        acciones.Margin = Padding.Empty;
+        barra.Controls.Add(acciones, 0, 0);
+
+        var derecha = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            WrapContents = false,
+            Anchor = AnchorStyles.Right | AnchorStyles.Top,
+            Margin = new Padding(6, 7, 0, 6)
+        };
+        if (configuracion is not null)
+        {
+            configuracion.Margin = new Padding(0, 4, 8, 0);
+            derecha.Controls.Add(configuracion);
+        }
+        derecha.Controls.Add(CrearBusqueda());
+        barra.Controls.Add(derecha, 1, 0);
+        return barra;
+    }
+
+    private Control CrearBusqueda()
+    {
+        var busqueda = new FlowLayoutPanel
+        {
+            Name = "busquedaPaciente",
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Margin = Padding.Empty
+        };
+        var rotulo = Estilo.Texto("Buscar paciente", 10, true);
+        rotulo.Margin = new Padding(0, 0, 0, 3);
+        buscar.Name = "buscarPaciente";
+        buscar.AccessibleName = "Buscar paciente por nombre o cédula";
+        buscar.Width = 245;
+        buscar.Margin = Padding.Empty;
+        busqueda.Controls.AddRange([rotulo, buscar]);
+        return busqueda;
+    }
 
     private Control CrearFiltros()
     {
@@ -16,6 +73,8 @@ internal sealed partial class Historias
         AgregarFiltro(barra, EstadoConsulta.Finalizada, "Finalizadas");
         AgregarFiltro(barra, EstadoConsulta.Impresa, "Enviadas a impresión");
         AgregarFiltro(barra, null, "Todas");
+        buscarEnTodas.Click += (_, _) => filtros.Single(filtro => filtro.Estado is null).Boton.Checked = true;
+        barra.Controls.Add(buscarEnTodas);
         return barra;
     }
 
@@ -105,7 +164,11 @@ internal sealed partial class Historias
             .ToList();
         lista.DataSource = visibles;
         RestaurarSeleccion(visibles, elegida);
-        resultados.Text = TextoDeResultados(visibles.Count, consulta);
+        bool ampliar = visibles.Count == 0 && consulta.Length > 0 && estadoSeleccionado is not null;
+        buscarEnTodas.Visible = ampliar;
+        resultados.Text = ampliar
+            ? $"Sin coincidencias en {filtros.Single(filtro => filtro.Estado == estadoSeleccionado).Nombre}"
+            : TextoDeResultados(visibles.Count, consulta);
         ActualizarAcciones();
     }
 

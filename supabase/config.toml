@@ -1,0 +1,4 @@
+project_id = "gineco"
+
+[functions.cuentas-gineco]
+verify_jwt = false

@@ -11,12 +11,19 @@ public sealed partial class Ventanas
     private sealed class BandejaDePrueba : HttpMessageHandler
     {
         internal List<Derivacion> Pendientes = [];
+        internal List<RetiroCompartido> Retiradas = [];
+        internal bool RespuestaDeRetirosInvalida;
         internal HttpStatusCode Estado = HttpStatusCode.OK;
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             if (request.RequestUri!.AbsolutePath.EndsWith("leer_cambios_consulta"))
                 return Task.FromResult(new HttpResponseMessage(Estado) { Content = JsonContent.Create(Array.Empty<CambioConsulta>()) });
+            if (request.RequestUri.AbsolutePath.EndsWith("leer_retiros_consulta"))
+                return Task.FromResult(new HttpResponseMessage(Estado)
+                {
+                    Content = RespuestaDeRetirosInvalida ? JsonContent.Create<RetiroCompartido[]?>(null) : JsonContent.Create(Retiradas)
+                });
             if (request.RequestUri!.AbsolutePath.EndsWith("confirmar_recepcion")) Pendientes.Clear();
             return Task.FromResult(new HttpResponseMessage(Estado) { Content = JsonContent.Create(Pendientes.ToArray()) });
         }
@@ -91,6 +98,27 @@ public sealed partial class Ventanas
             EsperarHasta(() => sinVinculo.IsCompleted);
             Assert.Contains(Descendientes(ventana).OfType<Label>(),
                 l => l.Text.StartsWith("Admisión requiere vincular esta PC de consulta · Última sincronización"));
+            transporte.Estado = HttpStatusCode.OK;
+            transporte.Retiradas = [new(siguiente.Id, 1)];
+            var actualizar = ventana.Recibir();
+            EsperarHasta(() => actualizar.IsCompleted);
+            actualizar.GetAwaiter().GetResult();
+            Assert.Equal(2, lista.Rows.Count);
+            Assert.DoesNotContain(archivo.Bandeja(), fila => fila.Id == siguiente.Id);
+            archivo.Alta(null, "A", "Administradora ficticia", "abcdef");
+            var admin = Assert.IsType<Medico>(archivo.Entrar("A", "Administradora ficticia", "abcdef"));
+            archivo.Retirar(admin, null, primera.Id);
+            var sinCredencial = ventana.Recibir();
+            EsperarHasta(() => sinCredencial.IsCompleted);
+            sinCredencial.GetAwaiter().GetResult();
+            Assert.Contains(Descendientes(ventana).OfType<Label>(), l => l.Text.Contains("Retiros por sincronizar"));
+            Assert.Equal(primera.Id, Assert.Single(archivo.RetirosPendientes()));
+            transporte.RespuestaDeRetirosInvalida = true;
+            var respuestaInvalida = ventana.Recibir();
+            EsperarHasta(() => respuestaInvalida.IsCompleted);
+            respuestaInvalida.GetAwaiter().GetResult();
+            Assert.Contains(Descendientes(ventana).OfType<Label>(), l => l.Text.StartsWith("Admisión sin conexión"));
+            Assert.Equal(1, archivo.UltimoRetiroRecibido());
             ventana.Close();
         });
     }

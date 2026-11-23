@@ -40,19 +40,21 @@ internal static class Perfiles
         return new(perfil.Id, perfil.Version, aplicados);
     }
 
-    internal static List<string> Advertencias(Atencion atencion)
+    internal static List<string> Advertencias(Atencion atencion) => Revisiones(atencion).Select(aviso => aviso.ToString()).ToList();
+
+    internal static List<AvisoRevision> Revisiones(Atencion atencion)
     {
-        var avisos = new List<string>();
-        if (atencion.Perfil is null) avisos.Add("Perfil de la paciente pendiente de selección.");
+        var avisos = new List<AvisoRevision>();
+        if (atencion.Perfil is null)
+            avisos.Add(new("Perfil de la paciente pendiente de selección", "", [new("perfilHistoria", "Elegir perfil")]));
         foreach (var (seccion, campos) in Clinica.Secciones)
         {
             var vacios = campos.Where(campo => campo.Key != "lugar" || atencion.Valor("previas") == OpcionesClinicas.No)
                 .Where(campo => campo.Key != "detalle_alergias" || atencion.Valor("alergias") == "Sí")
-                .Where(campo => string.IsNullOrWhiteSpace(atencion.Valor(campo.Key)))
-                .Select(campo => campo.Value).ToArray();
-            if (vacios.Length > 0) avisos.Add($"{seccion} — sin completar: {string.Join(", ", vacios)}.");
-            var intactos = campos.Where(campo => EsPredeterminado(atencion, campo.Key)).Select(campo => campo.Value).ToArray();
-            if (intactos.Length > 0) avisos.Add($"{seccion} — predeterminados sin cambios: {string.Join(", ", intactos)}.");
+                .Where(campo => string.IsNullOrWhiteSpace(atencion.Valor(campo.Key))).ToArray();
+            if (vacios.Length > 0) avisos.Add(new(seccion, "sin completar", vacios));
+            var intactos = campos.Where(campo => EsPredeterminado(atencion, campo.Key)).ToArray();
+            if (intactos.Length > 0) avisos.Add(new(seccion, "predeterminados sin cambios", intactos));
         }
         return avisos;
     }
@@ -72,7 +74,15 @@ internal sealed record Propuesta(string Campo, string Texto, long Historias)
 {
     public string Etiqueta => Perfiles.CamposClinicos.GetValueOrDefault(Campo, Campo);
 }
-internal sealed record ExportacionPreparada(Atencion Atencion, List<string> Avisos, List<string> Correcciones);
+internal sealed record AvisoRevision(string Seccion, string Estado, KeyValuePair<string, string>[] Campos)
+{
+    public override string ToString() => Estado.Length == 0 ? Seccion : $"{Seccion} — {Estado}: {string.Join(", ", Campos.Select(c => c.Value))}.";
+}
+
+internal sealed record ExportacionPreparada(Atencion Atencion, List<AvisoRevision> Revisiones, List<string> Correcciones)
+{
+    public List<string> Avisos => Revisiones.Select(aviso => aviso.ToString()).ToList();
+}
 
 internal static class Ortografia
 {
@@ -93,23 +103,33 @@ internal static class Ortografia
             throw new ArgumentException("Evita correcciones encadenadas o circulares.");
     }
 
-    internal static ExportacionPreparada Preparar(Atencion atencion, IReadOnlyList<Correccion> correcciones)
+    internal static ExportacionPreparada Preparar(Atencion atencion, IReadOnlyList<Correccion> correcciones,
+        Func<string, string?>? corregir = null)
     {
         var diccionario = correcciones.ToDictionary(regla => regla.Incorrecta, regla => regla.Correcta, StringComparer.OrdinalIgnoreCase);
         var datos = new Dictionary<string, string>(atencion.Campos);
         var cambios = new HashSet<string>();
+        var sugerencias = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var clave in Perfiles.CamposClinicos.Keys.Where(Perfiles.EsTextoLibre))
         {
             datos[clave] = Palabra.Replace(atencion.Valor(clave), coincidencia =>
             {
-                if (!diccionario.TryGetValue(coincidencia.Value, out string? corregida)) return coincidencia.Value;
+                string palabra = coincidencia.Value;
+                if (!diccionario.TryGetValue(palabra, out string? corregida) && corregir is not null && EsNarracion(clave))
+                {
+                    if (!sugerencias.TryGetValue(palabra, out corregida))
+                        sugerencias[palabra] = corregida = corregir(palabra);
+                }
+                if (corregida is null) return palabra;
                 string salida = ConMayusculas(coincidencia.Value, corregida);
                 cambios.Add($"{coincidencia.Value} → {salida}");
                 return salida;
             });
         }
-        return new(atencion with { Campos = datos }, Perfiles.Advertencias(atencion), cambios.Order().ToList());
+        return new(atencion with { Campos = datos }, Perfiles.Revisiones(atencion), cambios.Order().ToList());
     }
+
+    private static bool EsNarracion(string clave) => clave is not ("medicamentos" or "manejo" or "diagnosticos" or "detalle_alergias" or "pruebas");
 
     private static string ConMayusculas(string original, string reemplazo)
     {

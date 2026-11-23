@@ -30,7 +30,7 @@ internal sealed partial class Historias
             http = conectar?.Invoke();
             if (http is not null)
             {
-                enlace = new(http);
+                enlace = new(http, conectar == EnlaceAdmision.DesdeEstacion ? EnlaceAdmision.TokenRetiro() : null);
                 MostrarConexion("Conectando con Admisión…");
                 consulta.Tick += async (_, _) => await Recibir();
                 Shown += async (_, _) => { consulta.Start(); await Recibir(); };
@@ -62,23 +62,28 @@ internal sealed partial class Historias
                 Recargar();
                 Avisar(n);
             }, cancelacion);
-            if (IsDisposed) return;
+            cancelacion.ThrowIfCancellationRequested();
             var (activo, cambios, listadoAlDia) = await enlace.SincronizarListado(archivo, cancelacion);
-            if (IsDisposed) return;
+            cancelacion.ThrowIfCancellationRequested();
             if (cambios) Recargar();
-            ActualizarConexion(activo, admisionAlDia && listadoAlDia);
+            var (retiros, retirosAlDia) = await enlace.SincronizarRetiros(archivo, cancelacion);
+            cancelacion.ThrowIfCancellationRequested();
+            if (retiros) Recargar();
+            ActualizarConexion(activo, admisionAlDia && listadoAlDia && retirosAlDia);
         }
         catch (HttpRequestException error) when (error.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
             MostrarConexion("Admisión requiere vincular esta PC de consulta");
         }
-        catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException
-            or InvalidDataException or SqliteException or IOException)
+        catch (Exception error) when (ErrorDeSincronizacion(error))
         {
             MostrarConexion("Admisión sin conexión · Reintentando");
         }
         finally { recibiendo = false; }
     }
+
+    private static bool ErrorDeSincronizacion(Exception error) => error is HttpRequestException or OperationCanceledException
+        or JsonException or InvalidDataException or SqliteException or IOException;
 
     private void ActualizarConexion(bool activo, bool alDia)
     {
@@ -90,7 +95,8 @@ internal sealed partial class Historias
         }
 
         MostrarConexion(!activo ? "Admisión conectada · Solo listado local"
-            : alDia ? "Admisión conectada" : "Sincronizando listado…");
+            : alDia ? "Admisión conectada" : archivo.RetirosPendientes().Count > 0
+                ? "Admisión conectada · Retiros por sincronizar" : "Sincronizando listado…");
     }
 
     private void MostrarConexion(string estado)
@@ -144,7 +150,7 @@ internal sealed partial class Historias
         var preparada = archivo.PrepararExportacion(historia);
         using var revision = new RevisionExportacion(preparada, imprimir: true);
         var respuesta = revision.ShowDialog(this);
-        if (respuesta == DialogResult.Retry) Editar(historia);
+        if (respuesta == DialogResult.Retry) Editar(historia, revision.CampoParaRevisar);
         if (respuesta != DialogResult.OK) return;
         try { Impresion.Enviar(preparada.Atencion, impresora); }
         catch (Exception error) when (error is InvalidPrinterException or InvalidOperationException or Win32Exception or ExternalException or IOException)

@@ -40,7 +40,8 @@ internal sealed partial class Archivo
                 string.IsNullOrWhiteSpace(fila.Campos?.GetValueOrDefault("nombre")))
                 throw new InvalidDataException("La derivación está incompleta.");
             using var orden = Comando("""
-                INSERT INTO derivacion(id,visita,llegada,prioridad,campos) VALUES($id,$visita,$fecha,'',$campos)
+                INSERT INTO derivacion(id,visita,llegada,prioridad,campos)
+                SELECT $id,$visita,$fecha,'',$campos WHERE NOT EXISTS (SELECT 1 FROM retiro_derivacion WHERE derivacion=$id)
                 ON CONFLICT(id) DO NOTHING
                 """, tx, ("$id", fila.Id.ToString()), ("$visita", fila.Visita), ("$fecha", fila.Llegada),
                 ("$campos", JsonSerializer.Serialize(DatosAdmision(fila.Campos))));

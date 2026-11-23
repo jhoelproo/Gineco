@@ -9,6 +9,9 @@ internal static class Informe
     private static readonly MigraDoc.DocumentObjectModel.Color Fondo = MigraDoc.DocumentObjectModel.Color.FromRgb(239, 246, 249);
     private static readonly MigraDoc.DocumentObjectModel.Color Borde = MigraDoc.DocumentObjectModel.Color.FromRgb(207, 222, 230);
     private static readonly MigraDoc.DocumentObjectModel.Color Acento = MigraDoc.DocumentObjectModel.Color.FromRgb(24, 155, 199);
+    private static readonly MigraDoc.DocumentObjectModel.Color AzulClinico = MigraDoc.DocumentObjectModel.Color.FromRgb(0, 89, 115);
+    private static readonly Unit MargenHorizontal = Unit.FromCentimeter(1.5);
+    private static readonly Unit AnchoUtil = Unit.FromPoint(PdfSharp.PageSizeConverter.ToSize(PdfSharp.PageSize.Letter).Width - 2 * MargenHorizontal.Point);
 
     internal static void Exportar(Atencion atencion, string ruta)
     {
@@ -27,8 +30,8 @@ internal static class Informe
         pagina.PageSetup.PageFormat = PageFormat.Letter;
         pagina.PageSetup.TopMargin = Unit.FromCentimeter(3.4);
         pagina.PageSetup.HeaderDistance = Unit.FromCentimeter(0.8);
-        pagina.PageSetup.LeftMargin = Unit.FromCentimeter(1.5);
-        pagina.PageSetup.RightMargin = Unit.FromCentimeter(1.5);
+        pagina.PageSetup.LeftMargin = MargenHorizontal;
+        pagina.PageSetup.RightMargin = MargenHorizontal;
         pagina.PageSetup.BottomMargin = Unit.FromCentimeter(1.5);
         AgregarEncabezado(pagina);
         var pie = pagina.Footers.Primary.AddParagraph("Página ");
@@ -44,8 +47,9 @@ internal static class Informe
         AgregarAntecedentes(pagina, atencion);
         AgregarBloque(pagina, atencion, "Hallazgos del examen físico", ["abdomen"], ["especuloscopia"], ["tacto"]);
         AgregarBloque(pagina, atencion, "Signos vitales", ["ta", "temperatura", "fc", "fr"], ["pc", "spo2"]);
-        AgregarBloque(pagina, atencion, "Pruebas y hallazgos", ["pruebas"], ["hallazgos", "sonografias"]);
-        AgregarBloque(pagina, atencion, "Diagnósticos", ["diagnosticos"]);
+        AgregarBloque(pagina, atencion, "Pruebas y hallazgos", ["pruebas"], ["hallazgos"], ["sonografias"]);
+        AgregarSeccion(pagina, "Diagnósticos", destacada: true);
+        AgregarTextoClinico(CrearCuerpo(pagina), atencion.Valor("diagnosticos"), destacado: true);
         AgregarBloque(pagina, atencion, "Manejo en emergencia y disposición",
             ["manejo"], ["estatus"]);
         AgregarBloque(pagina, atencion, "Origen de la enfermedad", ["origen"], ["observaciones_origen"]);
@@ -70,8 +74,10 @@ internal static class Informe
     private static void AgregarEncabezado(Section pagina)
     {
         var tabla = pagina.Headers.Primary.AddTable();
-        tabla.AddColumn(Unit.FromCentimeter(15.6));
-        tabla.AddColumn(Unit.FromCentimeter(2.4));
+        tabla.Rows.LeftIndent = Unit.FromPoint(0);
+        var columnaSns = Unit.FromCentimeter(2.4);
+        tabla.AddColumn(Unit.FromPoint(AnchoUtil.Point - columnaSns.Point));
+        tabla.AddColumn(columnaSns);
         var fila = tabla.AddRow();
         fila.Borders.Bottom.Width = Unit.FromPoint(0.5);
         fila.Borders.Bottom.Color = Colors.LightGray;
@@ -91,8 +97,8 @@ internal static class Informe
         titulo.Format.Font.Color = Azul;
         var subtitulo = pagina.AddParagraph();
         subtitulo.Format.Font.Bold = true;
-        subtitulo.Format.TabStops.AddTabStop(Unit.FromCentimeter(18), MigraDoc.DocumentObjectModel.TabAlignment.Right);
-        subtitulo.AddFormattedText("GINECOLOGÍA Y OBSTETRICIA").Color = Acento;
+        subtitulo.Format.TabStops.AddTabStop(AnchoUtil, MigraDoc.DocumentObjectModel.TabAlignment.Right);
+        subtitulo.AddFormattedText("GINECOLOGÍA Y OBSTETRICIA").Color = AzulClinico;
         subtitulo.AddTab();
         subtitulo.AddText($"ATENCIÓN: {atencion.Fecha:dd/MM/yyyy HH:mm}");
     }
@@ -111,12 +117,12 @@ internal static class Informe
         }
     }
 
-    private static void AgregarSeccion(Section pagina, string texto)
+    private static void AgregarSeccion(Section pagina, string texto, bool destacada = false)
     {
         var titulo = pagina.AddParagraph(texto.ToUpperInvariant());
         titulo.Format.Font.Bold = true;
-        titulo.Format.Font.Color = Azul;
-        titulo.Format.Shading.Color = Fondo;
+        titulo.Format.Font.Color = destacada ? Colors.White : Azul;
+        titulo.Format.Shading.Color = destacada ? AzulClinico : Fondo;
         titulo.Format.Borders.Left.Color = Acento;
         titulo.Format.Borders.Left.Width = Unit.FromPoint(3);
         titulo.Format.Borders.DistanceFromLeft = Unit.FromPoint(6);
@@ -161,7 +167,8 @@ internal static class Informe
             if (clave == "pruebas")
                 AgregarPruebas(fila, valor);
             else
-                AgregarValor(fila, clave == "sexo" ? "Sexo" : signo?.RotuloPdf ?? Etiquetas[clave], signo?.FormatoPdf(valor) ?? valor);
+                AgregarValor(fila, clave == "sexo" ? "Sexo" : signo?.RotuloPdf ?? Etiquetas[clave], signo?.FormatoPdf(valor) ?? valor,
+                    destacado: clave == "sonografias");
         }
     }
 
@@ -189,8 +196,8 @@ internal static class Informe
         tabla.Rows.LeftIndent = Unit.FromPoint(0);
         tabla.Borders.Color = Borde;
         tabla.Borders.Width = Unit.FromPoint(0.5);
-        tabla.AddColumn(Unit.FromCentimeter(9));
-        tabla.AddColumn(Unit.FromCentimeter(9));
+        tabla.AddColumn(Unit.FromPoint(AnchoUtil.Point / 2));
+        tabla.AddColumn(Unit.FromPoint(AnchoUtil.Point / 2));
         var fila = tabla.AddRow();
         AgregarValor(fila.Cells[0].AddParagraph(), "Médico", atencion.Responsable.Nombre);
         AgregarValor(fila.Cells[0].AddParagraph(), "Exequátur", atencion.Responsable.Exequatur);
@@ -204,24 +211,29 @@ internal static class Informe
     private static void AgregarPruebas(Paragraph fila, string valor)
     {
         var pruebas = valor.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        fila.AddFormattedText(Etiquetas["pruebas"] + ": ", TextFormat.Bold).Color = Azul;
-        if (pruebas.Length == 0)
-        {
-            fila.AddText("Sin registrar");
-            return;
-        }
-        fila.AddFormattedText(string.Join(", ", pruebas), TextFormat.Bold);
+        AgregarValor(fila, Etiquetas["pruebas"], string.Join(", ", pruebas), destacado: true);
     }
 
-    private static void AgregarValor(Paragraph campo, string etiqueta, string valor)
+    private static void AgregarValor(Paragraph campo, string etiqueta, string valor, bool destacado = false)
     {
         campo.AddFormattedText(etiqueta + ": ", TextFormat.Bold).Color = Azul;
-        var lineas = (string.IsNullOrWhiteSpace(valor) ? "Sin registrar" : valor).ReplaceLineEndings("\n").Split('\n');
-        campo.AddText(lineas[0]);
-        foreach (var linea in lineas.Skip(1))
+        AgregarTextoClinico(campo, valor, destacado);
+    }
+
+    private static void AgregarTextoClinico(Paragraph campo, string valor, bool destacado)
+    {
+        if (string.IsNullOrWhiteSpace(valor))
         {
-            campo.AddLineBreak();
-            campo.AddText(linea);
+            campo.AddText("Sin registrar");
+            return;
+        }
+        var lineas = valor.ReplaceLineEndings("\n").Split('\n');
+        for (int i = 0; i < lineas.Length; i++)
+        {
+            if (i > 0) campo.AddLineBreak();
+            if (lineas[i].Length == 0) continue;
+            if (destacado) campo.AddFormattedText(lineas[i], TextFormat.Bold).Color = Azul;
+            else campo.AddText(lineas[i]);
         }
     }
 }

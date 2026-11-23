@@ -144,16 +144,28 @@ public sealed partial class Ventanas
                 Assert.True(configuracion.Visible);
                 var tabla = Assert.IsType<DataGridView>(configuracion.Controls.Find("predeterminados", true).Single());
                 var abdomen = tabla.Rows.Cast<DataGridViewRow>().Single(fila => fila.Tag as string == "abdomen");
-                abdomen.Cells[1].Value = "Predeterminado del administrador";
+                var editarTexto = Descendientes(configuracion).OfType<Button>().Single(boton => boton.Text == "Editar texto seleccionado");
+                tabla.CurrentCell = null;
+                editarTexto.PerformClick();
+                Descendientes(configuracion).OfType<Button>().Single(boton => boton.Text == "Usar propuesta como predeterminado").PerformClick();
+                tabla.CurrentCell = abdomen.Cells[1];
+                using var modal = new System.Windows.Forms.Timer { Interval = 20 };
+                modal.Tick += (_, _) =>
+                {
+                    if (Application.OpenForms.OfType<EditarPredeterminado>().FirstOrDefault() is not { } editorTexto) return;
+                    modal.Stop();
+                    Assert.Single(Descendientes(editorTexto).OfType<TextBox>()).Text = "Predeterminado del administrador";
+                    Descendientes(editorTexto).OfType<Button>().Single(boton => boton.Text == "Aceptar texto").PerformClick();
+                };
+                modal.Start();
+                editarTexto.PerformClick();
                 Descendientes(configuracion).OfType<Button>().Single(boton => boton.Text == "Guardar predeterminados").PerformClick();
                 Assert.Equal("Predeterminado del administrador", archivo.LeerPerfiles()[0].Campos["abdomen"]);
                 Capturar(configuracion, "configuracion-perfiles");
                 var pestanas = Assert.Single(configuracion.Controls.OfType<TabControl>());
                 pestanas.SelectedIndex = 1;
-                var diccionario = Assert.IsType<DataGridView>(configuracion.Controls.Find("diccionario", true).Single());
-                diccionario.Rows.Add("dolro", "dolor");
-                Descendientes(configuracion).OfType<Button>().Single(boton => boton.Text == "Guardar diccionario").PerformClick();
-                Assert.Equal(new Correccion("dolro", "dolor"), Assert.Single(archivo.ConsultarCorrecciones(admin)));
+                Assert.Empty(configuracion.Controls.Find("diccionario", true));
+                Assert.Contains(Descendientes(configuracion).OfType<Label>(), texto => texto.Text.Contains("corrección automática"));
                 Capturar(configuracion, "configuracion-ortografia");
                 pestanas.SelectedIndex = 0;
                 var selectorPerfil = Assert.IsType<ComboBox>(configuracion.Controls.Find("perfilConfiguracion", true).Single());
@@ -175,13 +187,14 @@ public sealed partial class Ventanas
             var selector = Assert.IsType<ComboBox>(editor.Controls.Find("perfilHistoria", true).Single());
             Assert.Equal(-1, selector.SelectedIndex);
             selector.SelectedIndex = 0;
+            Assert.Contains(Descendientes(editor).OfType<Label>(), texto => texto.Text.Contains("Por aplicar"));
             Descendientes(editor).OfType<Button>().Single(boton => boton.Text == "Aplicar perfil").PerformClick();
             Assert.Equal("Observación escrita por la médica", editor.Controls.Find("abdomen", true).Single().Text);
             Assert.Equal("Texto de ejemplo del administrador", editor.Controls.Find("motivo", true).Single().Text);
             var laboratorios = Assert.IsType<EntradaLaboratorio>(editor.Controls.Find("laboratorios", true).Single());
             Assert.Empty(laboratorios.Valor());
             Capturar(editor, "perfil-aplicado");
-            Descendientes(editor).OfType<Button>().Single(boton => boton.Text == "Guardar borrador").PerformClick();
+            Descendientes(editor).OfType<Button>().Single(boton => boton.Text == "Finalizar").PerformClick();
             var historia = Assert.Single(archivo.Listar(medica));
             Assert.Equal("embarazada", historia.Perfil!.Id);
             Assert.False(Perfiles.EsPredeterminado(historia, "pruebas"));
@@ -189,6 +202,16 @@ public sealed partial class Ventanas
             using (var aprendizaje = new Configuracion(archivo, admin))
             {
                 aprendizaje.Show();
+                using var dialogo = new System.Windows.Forms.Timer { Interval = 20 };
+                dialogo.Tick += (_, _) =>
+                {
+                    if (Application.OpenForms.OfType<EditarPredeterminado>().FirstOrDefault() is not { } editar) return;
+                    dialogo.Stop();
+                    Descendientes(editar).OfType<Button>().Single(boton => boton.Text == "Copiar propuesta al editor").PerformClick();
+                    Capturar(editar, "previsualizar-propuesta");
+                    Descendientes(editar).OfType<Button>().Single(boton => boton.Text == "Aceptar texto").PerformClick();
+                };
+                dialogo.Start();
                 Descendientes(aprendizaje).OfType<Button>().Single(boton => boton.Text == "Usar propuesta como predeterminado").PerformClick();
                 Descendientes(aprendizaje).OfType<Button>().Single(boton => boton.Text == "Guardar predeterminados").PerformClick();
                 Assert.Equal("Observación escrita por la médica", archivo.LeerPerfiles()[0].Campos["abdomen"]);
@@ -305,6 +328,7 @@ public sealed partial class Ventanas
 
             string? textoVista = null;
             bool soloLectura = false;
+            bool comparacionVerificada = false;
             using var temporizador = new System.Windows.Forms.Timer { Interval = 100 };
             temporizador.Tick += (_, _) =>
             {
@@ -315,20 +339,38 @@ public sealed partial class Ventanas
                 textoVista = contenido.Text;
                 soloLectura = contenido.ReadOnly;
                 Capturar(anterior, "vista-afiliada");
+                using var inspeccionar = new System.Windows.Forms.Timer { Interval = 20 };
+                inspeccionar.Tick += (_, _) =>
+                {
+                    if (Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.Text == "Comparar atenciones") is not { } comparacion) return;
+                    inspeccionar.Stop();
+                    var paneles = Descendientes(comparacion).OfType<TextBox>().ToArray();
+                    comparacionVerificada = paneles.Length == 2 && paneles.All(panel => panel.ReadOnly) &&
+                        paneles.Any(panel => panel.Text.Contains("Diagnóstico anterior ficticio")) &&
+                        paneles.Any(panel => panel.Text.Contains("Borrador actual"));
+                    Capturar(comparacion, "comparacion-historias");
+                    comparacion.Close();
+                };
+                inspeccionar.Start();
+                Descendientes(anterior).OfType<Button>().Single(boton => boton.Text == "Comparar con la historia actual").PerformClick();
                 anterior.Close();
             };
             temporizador.Start();
             botones.Single(boton => boton.Text == "Historias anteriores").PerformClick();
             Assert.True(soloLectura);
+            Assert.True(comparacionVerificada);
             Assert.Contains("Diagnóstico anterior ficticio", textoVista);
             Assert.Equal("Borrador actual", editor.Controls.Find("motivo", true).Single().Text);
 
             secciones.SelectedIndex = 1;
             var alergias = Assert.IsType<SeleccionClinica>(editor.Controls.Find("alergias", true).Single());
             var detalle = editor.Controls.Find("detalle_alergias", true).Single();
-            Assert.Equal("Sí", alergias.Valor);
-            Assert.True(detalle.Visible);
-            Assert.Equal("Látex", detalle.Text);
+            Assert.Empty(alergias.Valor);
+            Assert.False(detalle.Visible);
+            Assert.Empty(detalle.Text);
+            Assert.Contains(Descendientes(editor).OfType<Label>(), etiqueta => etiqueta.Text.Contains("Látex"));
+            ElegirCasilla(editor, "alergias", "Sí");
+            detalle.Text = "Látex";
             var pagina = Assert.IsAssignableFrom<ScrollableControl>(editor.Controls.Find("motivo", true).Single().Parent);
             var rueda = new RuedaDeSeccion(editor, () => pagina);
             pagina.AutoScrollPosition = Point.Empty;
@@ -368,6 +410,11 @@ public sealed partial class Ventanas
             Assert.Empty(editor.Controls.Find("cedula", true).Single().Text);
             Assert.Empty(editor.Controls.Find("detalle_alergias", true).Single().Text);
             Assert.Empty(Assert.IsType<SeleccionClinica>(editor.Controls.Find("alergias", true).Single()).Valor);
+            editor.Controls.Find("nombre", true).Single().Text = "Otro nombre ficticio";
+            nss.Text = "001234567";
+            Descendientes(editor).OfType<Button>().Single(boton => boton.Text == "Buscar afiliada").PerformClick();
+            Assert.Contains(Descendientes(editor).OfType<Label>(), l => l.Text.StartsWith("El nombre escrito no coincide"));
+            Assert.DoesNotContain(Descendientes(editor).OfType<Label>(), l => l.Text.Contains("Látex"));
         });
     }
 
