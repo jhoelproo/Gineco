@@ -14,6 +14,8 @@ Desde la versión 0.1.0, inicia sesión con tu exequátur y contraseña de Ginec
 
 La base de la versión Django se conserva por separado. La aplicación de escritorio aún no migra las cuentas ni las atenciones de Django, y quedan pendientes la desactivación de cuentas desde la interfaz y la reutilización de fichas de pacientes.
 
+En la versión 0.1.1, el editor incluye un selector AM/PM y la bandeja, el historial y el PDF muestran la hora en formato de 12 horas. El PDF destaca en negrita el nombre, NSS, teléfono y ARS de la paciente, además del nombre y exequátur del médico. La sección de origen muestra la opción seleccionada. Las observaciones del origen que se registraron antes se conservan en las historias guardadas.
+
 **Registrarse**, **Registrar médico** y **Olvidé mi contraseña** requieren la autorización de un administrador con cuenta compartida. El mínimo es de seis caracteres al crear o restablecer una contraseña. En una PC con cuentas de la versión anterior, **Usar una cuenta de esta PC** abre el acceso local y sus sugerencias de usuarios. Las cuentas médicas antiguas se pueden registrar como compartidas conservando su exequátur.
 
 El primer administrador se vincula en el equipo donde ya tiene su cuenta local. Un operador del proyecto Ginecología prepara un archivo privado `%LOCALAPPDATA%\Gineco\vinculo-cuentas.dat` con un código aleatorio de 32 bytes en hexadecimal minúsculo. Supabase guarda su SHA-256, el exequátur autorizado en minúsculas ASCII y su vencimiento en `gineco_privado.vinculo_administrador`. En Gineco, el administrador escribe su exequátur y contraseña local, y pulsa **Vincular mi administrador local**. El código se consume una vez. A partir de entonces puede usar **Iniciar sesión** desde otra PC.

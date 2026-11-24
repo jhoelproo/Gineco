@@ -48,12 +48,7 @@ internal sealed partial class Editor : Form
         DropDownStyle = ComboBoxStyle.DropDownList,
         AccessibleName = "Secciones de la historia en ventana reducida"
     };
-    private readonly DateTimePicker fecha = new()
-    {
-        Format = DateTimePickerFormat.Custom,
-        CustomFormat = "dd/MM/yyyy HH:mm",
-        Width = 220
-    };
+    private readonly EntradaFecha fecha = new();
     private readonly TextBox motivo = new() { Width = 235 };
     private readonly Button retroceder = Estilo.Boton("Anterior");
     private readonly Button avanzar = Estilo.Boton("Siguiente");
@@ -115,7 +110,7 @@ internal sealed partial class Editor : Form
             Padding = new Padding(20, 12, 20, 13)
         };
         string estado = anterior is null ? "Nueva historia" : anterior.Finalizada ? "Historia finalizada" : "Borrador";
-        var contexto = Estilo.Texto("Historia clínica  /  " + estado);
+        var contexto = Estilo.Texto(estado, 10, true);
         contexto.ForeColor = Estilo.Secundario;
         paciente.AutoSize = false;
         paciente.Height = 42;
@@ -124,8 +119,11 @@ internal sealed partial class Editor : Form
         panel.SizeChanged += (_, _) => paciente.Width = Math.Max(100, panel.ClientSize.Width - panel.Padding.Horizontal - 10);
         panel.Controls.Add(contexto);
         panel.Controls.Add(paciente);
-        var opciones = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
-        opciones.Controls.Add(Estilo.Texto("Perfil", 11, true));
+        var opciones = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
+        var etiquetaPerfil = Estilo.Texto("Perfil clínico", 11, true);
+        etiquetaPerfil.Margin = new Padding(3, 13, 10, 0);
+        perfil.Margin = new Padding(0, 9, 10, 0);
+        opciones.Controls.Add(etiquetaPerfil);
         opciones.Controls.Add(perfil);
         var aplicar = Estilo.Boton("Aplicar perfil");
         aplicar.Click += (_, _) => AplicarPerfil();
@@ -144,12 +142,12 @@ internal sealed partial class Editor : Form
 
     private Control CrearNavegacion()
     {
-        var lateral = new Panel { Dock = DockStyle.Left, Width = 244, Padding = new Padding(8, 0, 10, 0) };
+        var lateral = new Panel { Dock = DockStyle.Left, Width = 254, Padding = new Padding(8, 0, 14, 0) };
         var titulo = Estilo.Texto("Secciones", 10, true);
         titulo.Dock = DockStyle.Top;
         titulo.Padding = new Padding(5, 0, 0, 7);
         navegacion.BackColor = Estilo.Fondo;
-        navegacion.ItemHeight = 34;
+        navegacion.ItemHeight = 38;
         navegacion.Items.AddRange(Secciones);
         navegacion.DrawItem += DibujarSeccion;
         navegacion.SelectedIndexChanged += (_, _) => MostrarSeccion();
@@ -162,11 +160,17 @@ internal sealed partial class Editor : Form
     {
         if (evento.Index < 0) return;
         bool seleccionada = evento.State.HasFlag(DrawItemState.Selected);
-        using var fondo = new SolidBrush(seleccionada ? Estilo.Principal : Estilo.Fondo);
+        bool contrasteAlto = seleccionada && SystemInformation.HighContrast;
+        using var fondo = new SolidBrush(contrasteAlto ? Estilo.Principal : seleccionada ? Estilo.Resalte : Estilo.Fondo);
         evento.Graphics.FillRectangle(fondo, evento.Bounds);
-        var texto = new Rectangle(evento.Bounds.X + 9, evento.Bounds.Y, evento.Bounds.Width - 18, evento.Bounds.Height);
-        var color = seleccionada ? (SystemInformation.HighContrast ? SystemColors.HighlightText : Color.White) : Estilo.Tinta;
-        TextRenderer.DrawText(evento.Graphics, Secciones[evento.Index], evento.Font, texto, color,
+        if (seleccionada)
+        {
+            using var indicador = new SolidBrush(Estilo.Principal);
+            evento.Graphics.FillRectangle(indicador, evento.Bounds.X, evento.Bounds.Y, 3, evento.Bounds.Height);
+        }
+        var texto = new Rectangle(evento.Bounds.X + 12, evento.Bounds.Y, evento.Bounds.Width - 20, evento.Bounds.Height);
+        var color = contrasteAlto ? Estilo.EnPrincipal : Estilo.Tinta;
+        TextRenderer.DrawText(evento.Graphics, Secciones[evento.Index], seleccionada ? Estilo.LetraFuerte : evento.Font, texto, color,
             TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         evento.DrawFocusRectangle();
     }
@@ -252,7 +256,6 @@ internal sealed partial class Editor : Form
         CrearManejo();
         var origen = Pagina(Secciones[7]);
         AgregarSeleccion(origen, "origen", "Selecciona el origen", OpcionesClinicas.Origen);
-        AgregarCampo(origen, "observaciones_origen");
         foreach (var pagina in paginas) pagina.Controls.Add(new Panel { Width = 1, Height = 16 });
     }
 
@@ -291,15 +294,19 @@ internal sealed partial class Editor : Form
     private void CrearDatos()
     {
         var pagina = Pagina(Secciones[0]);
-        AgregarCampos(pagina, "nombre");
+        var cabecera = Cuadricula(pagina, 2);
+        AgregarCampo(Celda(cabecera), "nombre");
+        Estilo.Campo(Celda(cabecera), "Fecha y hora de atención", fecha);
         var identificadores = Cuadricula(pagina, 2);
         AgregarCampo(Celda(identificadores), "cedula");
         AgregarCampo(Celda(identificadores), "nss");
         CrearAccionesAfiliada(pagina);
-        var columnas = Cuadricula(pagina, 2);
-        foreach (string clave in new[] { "edad", "telefono", "ars", "direccion", "nacionalidad" })
-            AgregarCampo(Celda(columnas), clave);
-        Estilo.Campo(pagina, "Fecha y hora de atención · Santo Domingo", fecha);
+        var contacto = Cuadricula(pagina, 3);
+        foreach (string clave in new[] { "edad", "telefono", "ars" })
+            AgregarCampo(Celda(contacto), clave);
+        var domicilio = Cuadricula(pagina, 2);
+        AgregarCampo(Celda(domicilio), "direccion");
+        AgregarCampo(Celda(domicilio), "nacionalidad");
     }
 
     private void CrearLaboratorios()
@@ -398,6 +405,8 @@ internal sealed partial class Editor : Form
             Multiline = larga,
             ScrollBars = larga ? ScrollBars.Vertical : ScrollBars.None
         };
+        if (Clinica.IdentificacionDestacada(clave)) entrada.Font = Estilo.LetraFuerte;
+        if (clave == "nss") entrada.PlaceholderText = "NSS tal como está registrado";
         if (larga) entrada.Height = clave is "motivo" or "manejo" or "diagnosticos" ? 100 : 64;
         if (panel.Parent is TableLayoutPanel tabla)
             tabla.ClientSizeChanged += (_, _) => entrada.Width = Math.Max(110, tabla.Width / tabla.ColumnCount - 27);

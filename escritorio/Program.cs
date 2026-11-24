@@ -85,12 +85,12 @@ internal sealed class Cuenta : Form
         Estilo.Ventana(this);
         Text = titulo;
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(430, 445);
+        ClientSize = new Size(445, 470);
         nombre.Name = "nombreCuenta";
         exequatur.Name = "exequaturCuenta";
         clave.Name = "claveCuenta";
         var campos = Estilo.Columna();
-        campos.Controls.Add(Estilo.Texto(titulo, 23, true));
+        campos.Padding = new Padding(24, 10, 24, 18);
         FlowLayoutPanel? navegacion = archivo is null ? null : CrearNavegacion(archivo);
         if (navegacion is not null) campos.Controls.Add(navegacion);
         Estilo.Campo(campos, "Nombre completo", nombre);
@@ -120,6 +120,7 @@ internal sealed class Cuenta : Form
         AcceptButton = aceptar;
         Shown += (_, _) => nombre.Focus();
         Controls.Add(campos);
+        Controls.Add(Estilo.Encabezado(titulo, archivo is null ? "Registra el exequátur del médico." : "Emergencia ginecológica"));
     }
 
     private FlowLayoutPanel CrearNavegacion(Archivo archivo)
@@ -183,20 +184,9 @@ internal sealed partial class Historias : Form
     private readonly Archivo archivo;
     private readonly Medico usuario;
     private readonly CuentasCompartidas? cuentasCompartidas;
-    private readonly DataGridView lista = new()
-    {
-        Dock = DockStyle.Fill,
-        ReadOnly = true,
-        MultiSelect = false,
-        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        AllowUserToAddRows = false,
-        AllowUserToResizeRows = false,
-        RowHeadersVisible = false,
-        AutoGenerateColumns = false,
-        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-        AccessibleName = "Historias clínicas de pacientes"
-    };
-    private readonly Label resultados = Estilo.Texto("", 11);
+    private readonly DataGridView lista = Estilo.Tabla("Historias clínicas de pacientes");
+    private readonly Label bandejaVacia = Estilo.MensajeVacio("");
+    private readonly Label resultados = Estilo.Texto("", 10);
     private readonly Button abrir = Estilo.Boton("Abrir historia", Estilo.Principal);
     private readonly Button exportar = Estilo.Boton("Exportar PDF");
     private readonly Button imprimir = Estilo.Boton("Imprimir");
@@ -222,12 +212,12 @@ internal sealed partial class Historias : Form
         var cabecera = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 108,
-            Padding = new Padding(18, 11, 18, 8),
+            AutoSize = true,
+            Padding = new Padding(18, 11, 18, 10),
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false
         };
-        var servicio = Estilo.Texto("Emergencia ginecológica", 11, true);
+        var servicio = Estilo.Texto("Emergencia ginecológica", 10, true);
         servicio.ForeColor = Estilo.Principal;
         cabecera.Controls.Add(servicio);
         cabecera.Controls.Add(Estilo.Texto("Historias clínicas", 26, true));
@@ -267,6 +257,7 @@ internal sealed partial class Historias : Form
 
         var marco = new Panel { Dock = DockStyle.Fill, Padding = new Padding(18, 10, 18, 10) };
         marco.Controls.Add(lista);
+        marco.Controls.Add(bandejaVacia);
         Controls.Add(marco);
         Controls.Add(CrearFiltros());
         Controls.Add(pie);
@@ -286,28 +277,18 @@ internal sealed partial class Historias : Form
 
     private void ConfigurarLista()
     {
-        lista.BorderStyle = BorderStyle.None;
-        lista.BackgroundColor = Estilo.Papel;
-        lista.GridColor = Estilo.Linea;
-        lista.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
-        lista.EnableHeadersVisualStyles = false;
-        lista.ColumnHeadersHeight = 39;
+        Estilo.PresentarTabla(lista);
+        lista.ReadOnly = true;
         lista.RowTemplate.Height = 46;
-        lista.ColumnHeadersDefaultCellStyle.BackColor = Estilo.Fondo;
-        lista.ColumnHeadersDefaultCellStyle.ForeColor = Estilo.Tinta;
-        lista.ColumnHeadersDefaultCellStyle.SelectionBackColor = Estilo.Fondo;
         lista.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
-        lista.ColumnHeadersDefaultCellStyle.SelectionForeColor = Estilo.Tinta;
-        lista.DefaultCellStyle.ForeColor = Estilo.Tinta;
-        lista.DefaultCellStyle.SelectionBackColor = Estilo.Principal;
-        lista.DefaultCellStyle.SelectionForeColor = SystemInformation.HighContrast ? SystemColors.HighlightText : Color.White;
-        lista.DefaultCellStyle.Padding = new Padding(8, 0, 4, 0);
-        var paciente = new DataGridViewTextBoxColumn { HeaderText = "Paciente", DataPropertyName = nameof(FilaHistoria.Nombre), FillWeight = 49 };
-        paciente.DefaultCellStyle.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+        var paciente = new DataGridViewTextBoxColumn { HeaderText = "Paciente", DataPropertyName = nameof(FilaHistoria.Nombre), FillWeight = 49, MinimumWidth = 160 };
+        paciente.DefaultCellStyle.Font = Estilo.LetraFecha;
         lista.Columns.Add(paciente);
-        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Cédula", DataPropertyName = nameof(FilaHistoria.Cedula), FillWeight = 15, MinimumWidth = 120 });
-        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Fecha y hora", DataPropertyName = nameof(FilaHistoria.Fecha), FillWeight = 21, MinimumWidth = 148 });
-        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Admisión", DataPropertyName = nameof(FilaHistoria.Visita), FillWeight = 23, MinimumWidth = 95 });
+        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Cédula", DataPropertyName = nameof(FilaHistoria.Cedula), FillWeight = 17, MinimumWidth = 120 });
+        var fecha = new DataGridViewTextBoxColumn { HeaderText = "Fecha y hora", DataPropertyName = nameof(FilaHistoria.Fecha), FillWeight = 25, MinimumWidth = 184 };
+        fecha.DefaultCellStyle.Font = Estilo.LetraFecha;
+        lista.Columns.Add(fecha);
+        lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Admisión", DataPropertyName = nameof(FilaHistoria.Visita), FillWeight = 12, MinimumWidth = 87 });
         lista.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Estado", DataPropertyName = nameof(FilaHistoria.Estado), FillWeight = 24, MinimumWidth = 163 });
         lista.CellFormatting += ColorearEstado;
     }

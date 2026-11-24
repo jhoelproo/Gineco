@@ -5,8 +5,10 @@ internal sealed class Configuracion : Form
     private readonly Archivo archivo;
     private readonly Medico usuario;
     private readonly ComboBox perfil = new() { Width = 275, DropDownStyle = ComboBoxStyle.DropDownList, Name = "perfilConfiguracion" };
-    private readonly DataGridView campos = Tabla();
-    private readonly DataGridView propuestas = Tabla();
+    private readonly DataGridView campos = Estilo.Tabla("Campos predeterminados");
+    private readonly DataGridView propuestas = Estilo.Tabla("Propuestas de los médicos");
+    private readonly Label sinPropuestas = Estilo.MensajeVacio("Todavía no hay propuestas para este perfil.");
+    private readonly Button aceptar = Estilo.Boton("Usar propuesta como predeterminado");
     private PerfilClinico activo = new("", "", []);
     private readonly Label estado = Estilo.Texto("", 10);
     private bool cargando;
@@ -20,41 +22,57 @@ internal sealed class Configuracion : Form
         Estilo.Ventana(this);
         Text = "Configuración interna";
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(950, 640);
-        MinimumSize = new Size(740, 480);
-        var pestanas = new TabControl { Dock = DockStyle.Fill };
+        ClientSize = new Size(1000, 700);
+        MinimumSize = new Size(780, 546);
+        var pestanas = new TabControl
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Point(14, 7),
+            DrawMode = TabDrawMode.OwnerDrawFixed,
+            AccessibleName = "Secciones de configuración"
+        };
+        pestanas.DrawItem += DibujarPestana;
         pestanas.TabPages.Add(PaginaPerfiles());
         pestanas.TabPages.Add(PaginaCorrecciones());
-        pestanas.TabPages.Add(new TabPage("Sugerencias de medicamentos") { Controls = { new ConfigurarMedicacion(archivo, usuario) } });
-        Controls.Add(pestanas);
+        pestanas.TabPages.Add(new TabPage("Sugerencias de medicamentos")
+        {
+            BackColor = Estilo.Fondo,
+            Controls = { new ConfigurarMedicacion(archivo, usuario) }
+        });
+        var marco = new Panel { Dock = DockStyle.Fill, Padding = new Padding(18, 0, 18, 12) };
+        marco.Controls.Add(pestanas);
+        Controls.Add(marco);
         estado.Dock = DockStyle.Bottom;
-        estado.Padding = new Padding(12, 4, 12, 4);
+        estado.Padding = new Padding(22, 0, 22, 7);
+        estado.ForeColor = Estilo.Guardar;
+        estado.Visible = false;
         Controls.Add(estado);
+        Controls.Add(Estilo.Encabezado(Text, "Administra los perfiles clínicos y las sugerencias que verán los médicos."));
         perfil.SelectedIndexChanged += (_, _) => CargarPerfil();
         perfil.DataSource = archivo.LeerPerfiles();
         FormClosing += ConfirmarSalida;
     }
 
-    private static DataGridView Tabla() => new()
+    private static void DibujarPestana(object? remitente, DrawItemEventArgs evento)
     {
-        Dock = DockStyle.Fill,
-        AutoGenerateColumns = false,
-        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-        BackgroundColor = Estilo.Papel,
-        RowHeadersVisible = false,
-        AllowUserToAddRows = false,
-        AllowUserToDeleteRows = false,
-        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        MultiSelect = false,
-        ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
-        ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle { Padding = new Padding(4, 5, 4, 5), WrapMode = DataGridViewTriState.True },
-        RowTemplate = { Height = 34 }
-    };
+        if (remitente is not TabControl pestanas || evento.Index < 0) return;
+        bool activa = evento.Index == pestanas.SelectedIndex;
+        using var fondo = new SolidBrush(activa ? Estilo.Principal : Estilo.Fondo);
+        evento.Graphics.FillRectangle(fondo, evento.Bounds);
+        TextRenderer.DrawText(evento.Graphics, pestanas.TabPages[evento.Index].Text, pestanas.Font, evento.Bounds,
+            activa ? Estilo.EnPrincipal : Estilo.Tinta, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        evento.DrawFocusRectangle();
+    }
 
     private TabPage PaginaPerfiles()
     {
-        var pagina = new TabPage("Perfiles y aprendizaje") { Padding = new Padding(12) };
+        var pagina = new TabPage("Perfiles y aprendizaje") { Padding = new Padding(10), BackColor = Estilo.Fondo };
+        Estilo.PresentarTabla(campos);
+        Estilo.PresentarTabla(propuestas);
         var barra = Estilo.Barra(DockStyle.Top);
+        perfil.AccessibleName = "Perfil para editar";
+        perfil.Width = 220;
+        perfil.Margin = new Padding(0, 10, 12, 0);
         barra.Controls.Add(perfil);
         var guardar = Estilo.Boton("Guardar predeterminados", Estilo.Guardar);
         guardar.Click += (_, _) => Ejecutar(GuardarPerfil);
@@ -72,7 +90,7 @@ internal sealed class Configuracion : Form
         campos.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
         campos.CellValueChanged += (_, _) => { if (!cargando) modificado = true; };
 
-        var aprendizaje = new Panel { Dock = DockStyle.Bottom, Height = 215 };
+        var aprendizaje = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 10, 0, 0) };
         propuestas.ReadOnly = true;
         propuestas.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         propuestas.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
@@ -81,23 +99,38 @@ internal sealed class Configuracion : Form
         propuestas.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Texto escrito por médicos", DataPropertyName = nameof(Propuesta.Texto), FillWeight = 65 });
         propuestas.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Historias", DataPropertyName = nameof(Propuesta.Historias), FillWeight = 15 });
         var acciones = Estilo.Barra(DockStyle.Top);
-        var aceptar = Estilo.Boton("Usar propuesta como predeterminado");
+        var titulo = Estilo.Texto("Propuestas de los médicos", 12, true);
+        titulo.Margin = new Padding(0, 12, 16, 0);
+        acciones.Controls.Add(titulo);
+        aceptar.Enabled = false;
         aceptar.Click += (_, _) => UsarPropuesta();
+        propuestas.SelectionChanged += (_, _) => aceptar.Enabled = propuestas.CurrentRow?.DataBoundItem is Propuesta;
         acciones.Controls.Add(aceptar);
         aprendizaje.Controls.Add(propuestas);
+        aprendizaje.Controls.Add(sinPropuestas);
         aprendizaje.Controls.Add(acciones);
-        pagina.Controls.Add(campos);
-        pagina.Controls.Add(aprendizaje);
+        var tablas = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+        tablas.RowStyles.Add(new RowStyle(SizeType.Percent, 61));
+        tablas.RowStyles.Add(new RowStyle(SizeType.Percent, 39));
+        campos.Margin = Padding.Empty;
+        tablas.Controls.Add(campos, 0, 0);
+        tablas.Controls.Add(aprendizaje, 0, 1);
+        pagina.Controls.Add(tablas);
         pagina.Controls.Add(barra);
         return pagina;
     }
 
     private TabPage PaginaCorrecciones()
     {
-        var pagina = new TabPage("Corrección ortográfica") { Padding = new Padding(18) };
-        var nota = Estilo.Texto("La corrección automática funciona en esta PC. La revisión previa muestra las palabras que cambiarán en el PDF.");
+        var pagina = new TabPage("Corrección ortográfica") { Padding = new Padding(10), BackColor = Estilo.Fondo };
+        var contenido = Estilo.Columna();
+        var titulo = Estilo.Texto("Corrección automática activa", 17, true);
+        titulo.ForeColor = Estilo.Guardar;
+        contenido.Controls.Add(titulo);
+        var nota = Estilo.Texto("Antes de imprimir o exportar, la revisión muestra las palabras que se corregirán en el documento.");
         nota.MaximumSize = new Size(560, 0);
-        pagina.Controls.Add(nota);
+        contenido.Controls.Add(nota);
+        pagina.Controls.Add(contenido);
         return pagina;
     }
 
@@ -121,7 +154,12 @@ internal sealed class Configuracion : Form
                 campos.Rows[indice].Tag = clave;
             }
         }
-        propuestas.DataSource = archivo.LeerPropuestas(usuario, activo.Id);
+        var aprendidas = archivo.LeerPropuestas(usuario, activo.Id);
+        propuestas.DataSource = aprendidas;
+        propuestas.Visible = aprendidas.Count > 0;
+        sinPropuestas.Visible = aprendidas.Count == 0;
+        aceptar.Enabled = propuestas.CurrentRow?.DataBoundItem is Propuesta;
+        estado.Visible = false;
         modificado = false;
         cargando = false;
     }
@@ -153,6 +191,7 @@ internal sealed class Configuracion : Form
         activo = actualizado with { Version = activo.Version + 1 };
         modificado = false;
         estado.Text = "Predeterminados guardados. Se aplicarán cuando el médico elija este perfil.";
+        estado.Visible = true;
     }
 
     private void Ejecutar(Action accion)
@@ -203,6 +242,7 @@ internal sealed class EditarPredeterminado : Form
         pie.Controls.AddRange([aceptar, cancelar]);
         Controls.Add(panel);
         Controls.Add(pie);
+        Controls.Add(Estilo.Encabezado(propuesta is null ? "Editar predeterminado" : "Revisar propuesta"));
         CancelButton = cancelar;
     }
 
@@ -258,6 +298,7 @@ internal sealed class RevisionExportacion : Form
         marco.Controls.Add(detalle);
         Controls.Add(marco);
         Controls.Add(barra);
+        Controls.Add(Estilo.Encabezado(Text, "Selecciona un aviso para ir al campo correspondiente."));
         CancelButton = revisar;
         Shown += (_, _) => revisar.Focus();
     }

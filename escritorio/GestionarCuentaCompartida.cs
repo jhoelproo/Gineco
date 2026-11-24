@@ -47,7 +47,7 @@ internal sealed class RecuperarCuentaCompartida : Form
         StartPosition = FormStartPosition.CenterParent;
         objetivo.Text = exequatur;
         var panel = Estilo.Columna();
-        panel.Controls.Add(Estilo.Texto(Text, 19, true));
+        panel.Padding = new Padding(24, 10, 24, 18);
         Estilo.Campo(panel, "Exequátur de la cuenta", objetivo);
         Estilo.Campo(panel, "Nueva contraseña", nueva);
         Estilo.Campo(panel, "Confirma la nueva contraseña", confirmacion);
@@ -63,6 +63,7 @@ internal sealed class RecuperarCuentaCompartida : Form
         estado.AccessibleRole = AccessibleRole.Alert;
         panel.Controls.Add(estado);
         Controls.Add(panel);
+        Controls.Add(Estilo.Encabezado(Text, "El cambio se aplicará en todos los puestos vinculados."));
         AcceptButton = guardar;
         FormClosed += (_, _) => cierre.Cancel();
         Disposed += (_, _) => cierre.Dispose();

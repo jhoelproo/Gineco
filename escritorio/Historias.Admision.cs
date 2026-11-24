@@ -11,7 +11,7 @@ namespace Gineco;
 internal sealed partial class Historias
 {
     private List<FilaAdmision> admisiones = [];
-    private readonly Label conexion = Estilo.Texto("", 9);
+    private readonly Label conexion = Estilo.Texto("", 10);
     private readonly System.Windows.Forms.Timer consulta = new() { Interval = 5000 };
     private readonly CancellationTokenSource cierre = new();
     private EnlaceAdmision? enlace;
@@ -23,6 +23,7 @@ internal sealed partial class Historias
     private void PrepararRecepcion(Control cabecera, Func<HttpClient?>? conectar)
     {
         conexion.AutoSize = true;
+        conexion.ForeColor = Estilo.Secundario;
         cabecera.Controls.Add(conexion);
         ultimaSincronizacion = archivo.UltimaSincronizacion();
         try
@@ -103,7 +104,7 @@ internal sealed partial class Historias
     {
         if (IsDisposed) return;
         conexion.Text = ultimaSincronizacion is { } instante
-            ? $"{estado} · Última sincronización {Clinica.HoraHospital(instante):dd/MM/yyyy HH:mm}"
+            ? $"{estado} · Última sincronización {Clinica.FechaPresentada(Clinica.HoraHospital(instante))}"
             : estado;
     }
 

@@ -14,7 +14,7 @@ internal sealed class Registro : Form
         administrador.DataSource = archivo.UsuariosActivos().Where(usuario => usuario.Administrador).ToList();
         administrador.DisplayMember = nameof(Medico.Nombre);
         var panel = Estilo.Columna();
-        panel.Controls.Add(Estilo.Texto(Text, 20, true));
+        panel.Padding = new Padding(24, 10, 24, 18);
         Estilo.Campo(panel, "Administrador que autoriza el registro", administrador);
         Estilo.Campo(panel, "Contraseña del administrador", autorizacion);
         var continuar = Estilo.Boton("Continuar al registro", Estilo.Principal);
@@ -22,6 +22,7 @@ internal sealed class Registro : Form
         panel.Controls.Add(continuar);
         AcceptButton = continuar;
         Controls.Add(panel);
+        Controls.Add(Estilo.Encabezado(Text, "Un administrador debe autorizar el registro."));
     }
 
     private void Registrar(Archivo archivo)

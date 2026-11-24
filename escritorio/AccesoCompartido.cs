@@ -21,9 +21,9 @@ internal sealed class AccesoCompartido : Form
         this.archivoVinculo = archivoVinculo;
         Estilo.Ventana(this);
         Text = archivo is null ? "Autorizar como administrador" : "Iniciar sesión en Gineco";
-        ClientSize = new Size(455, 500);
+        ClientSize = new Size(485, 485);
         StartPosition = FormStartPosition.CenterParent;
-        contenido.Controls.Add(Estilo.Texto(Text, 19, true));
+        contenido.Padding = new Padding(24, 10, 24, 20);
         Estilo.Campo(contenido, "Exequátur", exequatur);
         Estilo.Campo(contenido, "Contraseña", clave);
         var entrar = Estilo.Boton(archivo is null ? "Autorizar" : "Iniciar sesión", Estilo.Principal);
@@ -34,6 +34,7 @@ internal sealed class AccesoCompartido : Form
         contenido.Controls.Add(estado);
         if (archivo is not null) AgregarOpciones(archivo);
         Controls.Add(contenido);
+        Controls.Add(Estilo.Encabezado(Text, archivo is null ? "Usa tu cuenta de administración." : "Usa tu cuenta médica vinculada."));
         AcceptButton = entrar;
         Shown += (_, _) => exequatur.Focus();
         FormClosed += (_, _) => cierre.Cancel();
@@ -43,6 +44,7 @@ internal sealed class AccesoCompartido : Form
     private void AgregarOpciones(Archivo archivo)
     {
         var acciones = Estilo.Barra(DockStyle.None);
+        acciones.Padding = new Padding(0, 10, 0, 0);
         var registrar = Estilo.Boton("Registrarse");
         registrar.Click += async (_, _) => await Ejecutar(async () =>
         {

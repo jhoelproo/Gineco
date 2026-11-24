@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -11,12 +12,15 @@ internal record Atencion(long Id, Medico Responsable, DateTime Fecha, Dictionary
     public bool Impresa { get; init; }
     public string Nombre => Valor("nombre");
     public string Valor(string clave) => Campos.GetValueOrDefault(clave, "");
-    public override string ToString() => $"{Fecha:dd/MM/yyyy HH:mm} · {Nombre} · {(Finalizada ? "Finalizada" : "Borrador")}";
+    public override string ToString() => $"{Clinica.FechaPresentada(Fecha)} · {Nombre} · {(Finalizada ? "Finalizada" : "Borrador")}";
 }
 
 internal static class Clinica
 {
     internal const string Titulo = "Historia clínica de emergencia ginecológica";
+    internal const string FormatoFecha = "dd/MM/yyyy hh:mm tt";
+    internal static string FechaPresentada(DateTime fecha) => fecha.ToString(FormatoFecha, CultureInfo.InvariantCulture);
+    internal static bool IdentificacionDestacada(string campo) => campo is "nombre" or "nss" or "telefono" or "ars";
     internal static string Recurso(string nombre) => Path.Combine(AppContext.BaseDirectory, "Recursos", nombre);
     internal static readonly Dictionary<string, Dictionary<string, string>> Secciones =
         JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(File.ReadAllText(Recurso("campos.json")))!;

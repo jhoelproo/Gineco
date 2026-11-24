@@ -48,7 +48,6 @@
     "estatus": "Estatus del paciente"
   },
   "Origen de la enfermedad": {
-    "origen": "Origen de la enfermedad",
-    "observaciones_origen": "Observaciones del origen"
+    "origen": "Origen de la enfermedad"
   }
 }

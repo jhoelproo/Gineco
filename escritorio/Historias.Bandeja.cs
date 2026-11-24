@@ -117,7 +117,7 @@ internal sealed partial class Historias
     {
         public string Nombre => Atencion?.Nombre ?? Admision!.Nombre;
         public string Cedula => Atencion?.Valor("cedula") ?? Admision!.Cedula;
-        public string Fecha => (Admision?.Llegada ?? Atencion!.Fecha).ToString("dd/MM/yyyy HH:mm");
+        public string Fecha => Clinica.FechaPresentada(Admision?.Llegada ?? Atencion!.Fecha);
         public string Visita => Admision is null ? "" : $"#{Admision.Visita}";
         internal EstadoConsulta Situacion => Admision?.Situacion ?? EstadoLocal(Atencion!);
         public string Estado => Admision?.Estado ?? (Situacion switch
@@ -166,9 +166,13 @@ internal sealed partial class Historias
         RestaurarSeleccion(visibles, elegida);
         bool ampliar = visibles.Count == 0 && consulta.Length > 0 && estadoSeleccionado is not null;
         buscarEnTodas.Visible = ampliar;
-        resultados.Text = ampliar
+        string resumen = ampliar
             ? $"Sin coincidencias en {filtros.Single(filtro => filtro.Estado == estadoSeleccionado).Nombre}"
             : TextoDeResultados(visibles.Count, consulta);
+        bandejaVacia.Text = resumen;
+        bandejaVacia.Visible = visibles.Count == 0;
+        resultados.Text = visibles.Count == 0 ? "" : resumen;
+        lista.Visible = visibles.Count > 0;
         ActualizarAcciones();
     }
 

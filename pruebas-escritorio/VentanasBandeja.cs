@@ -31,9 +31,11 @@ public sealed partial class Ventanas
             Assert.True(FiltroDeBandeja(ventana, "Pendientes").Checked);
             Assert.Equal("Pendientes (1)", FiltroDeBandeja(ventana, "Pendientes").Text);
             Assert.Equal("Paciente 1", Assert.Single(tabla.Rows.Cast<DataGridViewRow>()).Cells[0].Value);
+            Assert.True(tabla.Columns[2].DefaultCellStyle.Font?.Bold);
             var buscar = Assert.Single(Descendientes(ventana).OfType<TextBox>());
             buscar.Text = "Finalizada QA";
             Assert.Empty(tabla.Rows.Cast<DataGridViewRow>());
+            Assert.Contains(Descendientes(ventana).OfType<Label>(), rotulo => rotulo.Visible && rotulo.Text == "Sin coincidencias en Pendientes");
             var ampliar = Descendientes(ventana).OfType<Button>().Single(boton => boton.Text == "Buscar en todas");
             Assert.True(ampliar.Visible);
             ampliar.PerformClick();
@@ -46,7 +48,7 @@ public sealed partial class Ventanas
             ComprobarFiltro("Finalizadas", 1);
             ComprobarFiltro("Enviadas a impresión", 1);
             ComprobarFiltro("Todas", 5);
-            Assert.Contains(Descendientes(ventana).OfType<Label>(), l => l.Text.EndsWith("18/11/2026 10:42"));
+            Assert.Contains(Descendientes(ventana).OfType<Label>(), l => l.Text.EndsWith("18/11/2026 10:42 AM"));
             Capturar(ventana, "bandeja-por-estados");
 
             ventana.Size = ventana.MinimumSize;

@@ -31,7 +31,10 @@ internal sealed class SugerenciasMedicacion : FlowLayoutPanel
         AutoSize = true;
         FlowDirection = FlowDirection.TopDown;
         WrapContents = false;
-        Controls.Add(Estilo.Texto("Sugerencias de historias anteriores", 11, true));
+        Padding = new Padding(12, 9, 12, 7);
+        BackColor = Estilo.Resalte;
+        Controls.Add(Estilo.Texto("Sugerencias de historias anteriores", 12, true));
+        estado.ForeColor = Estilo.Secundario;
         Controls.Add(estado);
         Controls.Add(lista);
         Controls.Add(vista);
@@ -41,7 +44,7 @@ internal sealed class SugerenciasMedicacion : FlowLayoutPanel
         {
             if (lista.SelectedItem is MedicacionHistorica item) anadirTexto(item.Texto);
         };
-        SizeChanged += (_, _) => vista.Width = lista.Width = Math.Clamp(Width - 16, 160, 460);
+        SizeChanged += (_, _) => vista.Width = lista.Width = Math.Clamp(Width - Padding.Horizontal - 12, 160, 460);
     }
 
     internal void Actualizar()
@@ -75,22 +78,9 @@ internal sealed class ConfigurarMedicacion : UserControl
 {
     private readonly Archivo archivo;
     private readonly Medico admin;
-    private readonly ComboBox perfil = new() { Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
-    private readonly DataGridView tabla = new()
-    {
-        Name = "medicacionHistorica",
-        Dock = DockStyle.Fill,
-        BackgroundColor = Estilo.Papel,
-        ReadOnly = true,
-        AutoGenerateColumns = false,
-        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-        AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
-        RowHeadersVisible = false,
-        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        MultiSelect = false,
-        AllowUserToAddRows = false,
-        AllowUserToDeleteRows = false
-    };
+    private readonly ComboBox perfil = new() { Width = 215, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly DataGridView tabla = Estilo.Tabla("Sugerencias de medicamentos");
+    private readonly Label sinSugerencias = Estilo.MensajeVacio("Todavía no hay sugerencias para este perfil.");
     private readonly Button aprobar = Estilo.Boton("Aprobar", Estilo.Guardar);
     private readonly Button retirar = Estilo.Boton("Retirar");
 
@@ -99,20 +89,25 @@ internal sealed class ConfigurarMedicacion : UserControl
         this.archivo = archivo;
         this.admin = admin;
         Dock = DockStyle.Fill;
-        Padding = new Padding(12);
+        Padding = new Padding(10);
+        tabla.Name = "medicacionHistorica";
+        tabla.ReadOnly = true;
+        tabla.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+        Estilo.PresentarTabla(tabla);
         tabla.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         AgregarColumna("Diagnóstico", nameof(MedicacionHistorica.Diagnostico), 28);
-        AgregarColumna("Texto registrado en medicación", nameof(MedicacionHistorica.Texto), 49);
+        AgregarColumna("Medicación registrada", nameof(MedicacionHistorica.Texto), 49);
         AgregarColumna("Historias", nameof(MedicacionHistorica.Historias), 11);
         tabla.Columns.Add(new DataGridViewCheckBoxColumn { HeaderText = "Aprobada", DataPropertyName = nameof(MedicacionHistorica.Aprobada), FillWeight = 12 });
         var barra = Estilo.Barra(DockStyle.Top);
+        var rotulo = Estilo.Texto("Perfil clínico", 11, true);
+        rotulo.Margin = new Padding(0, 12, 12, 0);
         perfil.AccessibleName = "Perfil de sugerencias";
-        barra.Controls.Add(perfil);
-        barra.Controls.Add(aprobar);
-        barra.Controls.Add(retirar);
-        var nota = Estilo.Texto("Revisa el texto completo y aprueba únicamente sugerencias reutilizables sin datos de pacientes.", 10);
-        nota.Dock = DockStyle.Bottom;
+        perfil.Margin = new Padding(0, 10, 14, 0);
+        barra.Controls.AddRange([rotulo, perfil, aprobar, retirar]);
+        var nota = Estilo.Encabezado("Sugerencias de medicamentos", "Revisa el texto y aprueba solo sugerencias reutilizables sin datos de pacientes.");
         Controls.Add(tabla);
+        Controls.Add(sinSugerencias);
         Controls.Add(barra);
         Controls.Add(nota);
         aprobar.Click += (_, _) => Cambiar(true);
@@ -128,8 +123,11 @@ internal sealed class ConfigurarMedicacion : UserControl
 
     private void Cargar()
     {
-        if (perfil.SelectedItem is PerfilClinico actual)
-            tabla.DataSource = archivo.MedicacionParaRevisar(admin, actual.Id);
+        if (perfil.SelectedItem is not PerfilClinico actual) return;
+        var sugerencias = archivo.MedicacionParaRevisar(admin, actual.Id);
+        tabla.DataSource = sugerencias;
+        tabla.Visible = sugerencias.Count > 0;
+        sinSugerencias.Visible = sugerencias.Count == 0;
         ActualizarBotones();
     }
 

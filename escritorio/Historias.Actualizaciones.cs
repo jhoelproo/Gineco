@@ -59,30 +59,24 @@ internal sealed class VentanaActualizaciones : Form
         this.actualizaciones = actualizaciones;
         Estilo.Ventana(this);
         Text = "Actualizaciones";
-        ClientSize = new Size(530, 170);
+        ClientSize = new Size(660, 235);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = MaximizeBox = false;
 
-        var contenido = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            Padding = new Padding(18),
-            AutoScroll = true
-        };
-        contenido.Controls.Add(Estilo.Texto($"Versión {actualizaciones.Version}", 16, true));
-        estado.MaximumSize = new Size(470, 0);
+        var contenido = Estilo.Columna();
+        contenido.Padding = new Padding(24, 12, 24, 12);
+        estado.MaximumSize = new Size(590, 0);
+        estado.AccessibleRole = AccessibleRole.Alert;
         contenido.Controls.Add(estado);
-        var acciones = Estilo.Barra(DockStyle.None);
-        acciones.AutoSize = true;
+        var acciones = Estilo.Barra(DockStyle.Bottom);
         var publicaciones = Estilo.Boton("Abrir GitHub");
         var cerrar = Estilo.Boton("Cerrar");
         cerrar.DialogResult = DialogResult.Cancel;
         acciones.Controls.AddRange([buscar, instalar, publicaciones, cerrar]);
-        contenido.Controls.Add(acciones);
         Controls.Add(contenido);
+        Controls.Add(acciones);
+        Controls.Add(Estilo.Encabezado(Text, $"Versión instalada {actualizaciones.Version}"));
         CancelButton = cerrar;
         buscar.Click += async (_, _) => await Buscar();
         instalar.Click += async (_, _) => await Instalar();

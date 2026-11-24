@@ -32,10 +32,15 @@ public sealed class CambiosClinicos
         var campos = Clinica.Secciones.Values.SelectMany(seccion => seccion)
             .ToDictionary(campo => campo.Key, _ => "Dato ficticio");
         campos["nombre"] = "Paciente de demostración";
+        campos["nss"] = "001234567890";
+        campos["telefono"] = "8095550123";
+        campos["ars"] = "ARS de demostración";
         campos["pruebas"] = new AnalisisLaboratorio(AnalisisLaboratorio.Opciones, "Perfil renal").Guardar();
         campos["diagnosticos"] = "Diagnóstico principal de demostración\nDiagnóstico adicional de demostración";
         campos["sonografias"] = "Sonografía de demostración";
         campos["alergias"] = "Sí";
+        campos["origen"] = "Maternidad";
+        campos["observaciones_origen"] = "Observación ficticia de una historia anterior";
         var historia = new Atencion(1, new("01", "Dra. de demostración", false),
             new DateTime(2026, 11, 15, 12, 20, 0), campos, true);
         string ruta = Path.GetTempFileName();

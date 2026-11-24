@@ -1,4 +1,5 @@
 using MigraDoc.DocumentObjectModel;
+using MigraDoc.DocumentObjectModel.Tables;
 using MigraDoc.Rendering;
 
 namespace Gineco;
@@ -52,7 +53,7 @@ internal static class Informe
         AgregarTextoClinico(CrearCuerpo(pagina), atencion.Valor("diagnosticos"), destacado: true);
         AgregarBloque(pagina, atencion, "Manejo en emergencia y disposición",
             ["manejo"], ["estatus"]);
-        AgregarBloque(pagina, atencion, "Origen de la enfermedad", ["origen"], ["observaciones_origen"]);
+        AgregarBloque(pagina, atencion, "Origen de la enfermedad", ["origen"]);
         AgregarFirmas(pagina, atencion);
 
         return documento;
@@ -95,12 +96,23 @@ internal static class Informe
         titulo.Format.Font.Size = Unit.FromPoint(15);
         titulo.Format.Font.Bold = true;
         titulo.Format.Font.Color = Azul;
-        var subtitulo = pagina.AddParagraph();
-        subtitulo.Format.Font.Bold = true;
-        subtitulo.Format.TabStops.AddTabStop(AnchoUtil, MigraDoc.DocumentObjectModel.TabAlignment.Right);
-        subtitulo.AddFormattedText("GINECOLOGÍA Y OBSTETRICIA").Color = AzulClinico;
-        subtitulo.AddTab();
-        subtitulo.AddText($"ATENCIÓN: {atencion.Fecha:dd/MM/yyyy HH:mm}");
+        titulo.Format.KeepWithNext = true;
+        var datos = pagina.AddTable();
+        datos.Rows.LeftIndent = Unit.FromPoint(0);
+        datos.LeftPadding = datos.RightPadding = Unit.FromPoint(0);
+        datos.AddColumn(Unit.FromPoint(AnchoUtil.Point * 0.60));
+        datos.AddColumn(Unit.FromPoint(AnchoUtil.Point * 0.40));
+        var fila = datos.AddRow();
+        fila.VerticalAlignment = VerticalAlignment.Center;
+        var servicio = fila.Cells[0].AddParagraph("GINECOLOGÍA Y OBSTETRICIA");
+        servicio.Format.Font.Bold = true;
+        servicio.Format.Font.Color = AzulClinico;
+        var atencionLocal = fila.Cells[1].AddParagraph();
+        atencionLocal.Format.Alignment = ParagraphAlignment.Right;
+        var fecha = atencionLocal.AddFormattedText($"ATENCIÓN  {Clinica.FechaPresentada(atencion.Fecha)}");
+        fecha.Size = Unit.FromPoint(12);
+        fecha.Bold = true;
+        fecha.Color = AzulClinico;
     }
 
     private static readonly Dictionary<string, string> Etiquetas = Clinica.Secciones.Values
@@ -162,13 +174,20 @@ internal static class Informe
         {
             if (indice > 0) fila.AddText("    \u00a0    ");
             var clave = claves[indice];
-            var signo = SignoVital.Buscar(clave);
-            var valor = clave == "sexo" ? OpcionesClinicas.Femenino : atencion.Valor(clave);
             if (clave == "pruebas")
-                AgregarPruebas(fila, valor);
-            else
-                AgregarValor(fila, clave == "sexo" ? "Sexo" : signo?.RotuloPdf ?? Etiquetas[clave], signo?.FormatoPdf(valor) ?? valor,
-                    destacado: clave == "sonografias");
+            {
+                AgregarPruebas(fila, atencion.Valor(clave));
+                continue;
+            }
+            if (clave == "sexo")
+            {
+                AgregarValor(fila, "Sexo", OpcionesClinicas.Femenino);
+                continue;
+            }
+            var signo = SignoVital.Buscar(clave);
+            var valor = atencion.Valor(clave);
+            AgregarValor(fila, signo?.RotuloPdf ?? Etiquetas[clave], signo?.FormatoPdf(valor) ?? valor,
+                destacado: clave == "sonografias" || Clinica.IdentificacionDestacada(clave));
         }
     }
 
@@ -199,13 +218,13 @@ internal static class Informe
         tabla.AddColumn(Unit.FromPoint(AnchoUtil.Point / 2));
         tabla.AddColumn(Unit.FromPoint(AnchoUtil.Point / 2));
         var fila = tabla.AddRow();
-        AgregarValor(fila.Cells[0].AddParagraph(), "Médico", atencion.Responsable.Nombre);
-        AgregarValor(fila.Cells[0].AddParagraph(), "Exequátur", atencion.Responsable.Exequatur);
+        AgregarValor(fila.Cells[0].AddParagraph(), "Médico", atencion.Responsable.Nombre, destacado: true);
+        AgregarValor(fila.Cells[0].AddParagraph(), "Exequátur", atencion.Responsable.Exequatur, destacado: true);
         var medica = fila.Cells[0].AddParagraph("______________________________\nFirma y sello del médico");
         var paciente = fila.Cells[1].AddParagraph("______________________________\nFirma del paciente o familiar");
         medica.Format.SpaceBefore = Unit.FromPoint(11);
         paciente.Format.SpaceBefore = Unit.FromPoint(11);
-        fila.Cells[1].VerticalAlignment = MigraDoc.DocumentObjectModel.Tables.VerticalAlignment.Bottom;
+        fila.Cells[1].VerticalAlignment = VerticalAlignment.Bottom;
     }
 
     private static void AgregarPruebas(Paragraph fila, string valor)

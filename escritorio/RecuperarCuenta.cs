@@ -18,7 +18,7 @@ internal sealed class RecuperarCuenta : Form
         administrador.DataSource = archivo.UsuariosActivos().Where(usuario => usuario.Administrador).ToList();
         administrador.DisplayMember = nameof(Medico.Nombre);
         var panel = Estilo.Columna();
-        panel.Controls.Add(Estilo.Texto(Text, 20, true));
+        panel.Padding = new Padding(24, 10, 24, 18);
         Estilo.Campo(panel, "Exequátur de la cuenta", objetivo);
         Estilo.Campo(panel, "Administrador que autoriza", administrador);
         Estilo.Campo(panel, "Contraseña del administrador", claveAdministrador);
@@ -29,6 +29,7 @@ internal sealed class RecuperarCuenta : Form
         panel.Controls.Add(guardar);
         AcceptButton = guardar;
         Controls.Add(panel);
+        Controls.Add(Estilo.Encabezado(Text, "Un administrador de esta PC debe autorizar el cambio."));
     }
 
     private void Restablecer(Archivo archivo)

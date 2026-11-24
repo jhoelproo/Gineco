@@ -21,7 +21,7 @@ public sealed partial class Ventanas
             acceso.Show();
             Assert.Equal("Iniciar sesión", acceso.Text);
             Capturar(acceso, "acceso");
-            var panel = Assert.Single(acceso.Controls.OfType<FlowLayoutPanel>());
+            var panel = Assert.Single(acceso.Controls.OfType<FlowLayoutPanel>(), contenido => contenido.AutoScroll);
             var opciones = Assert.Single(panel.Controls.OfType<FlowLayoutPanel>());
             Assert.False(opciones.Controls.OfType<Button>().Single(boton => boton.Text == "Iniciar sesión").Enabled);
             var registro = opciones.Controls.OfType<Button>().Single(boton => boton.Text == "Registrarse");
@@ -162,10 +162,10 @@ public sealed partial class Ventanas
                 Descendientes(configuracion).OfType<Button>().Single(boton => boton.Text == "Guardar predeterminados").PerformClick();
                 Assert.Equal("Predeterminado del administrador", archivo.LeerPerfiles()[0].Campos["abdomen"]);
                 Capturar(configuracion, "configuracion-perfiles");
-                var pestanas = Assert.Single(configuracion.Controls.OfType<TabControl>());
+                var pestanas = Assert.Single(Descendientes(configuracion).OfType<TabControl>());
                 pestanas.SelectedIndex = 1;
                 Assert.Empty(configuracion.Controls.Find("diccionario", true));
-                Assert.Contains(Descendientes(configuracion).OfType<Label>(), texto => texto.Text.Contains("corrección automática"));
+                Assert.Contains(Descendientes(configuracion).OfType<Label>(), texto => texto.Visible && texto.Text == "Corrección automática activa");
                 Capturar(configuracion, "configuracion-ortografia");
                 pestanas.SelectedIndex = 0;
                 var selectorPerfil = Assert.IsType<ComboBox>(configuracion.Controls.Find("perfilConfiguracion", true).Single());
@@ -240,7 +240,7 @@ public sealed partial class Ventanas
             using (var configuracion = new Configuracion(archivo, admin))
             {
                 configuracion.Show();
-                Assert.Single(configuracion.Controls.OfType<TabControl>()).SelectedIndex = 2;
+                Assert.Single(Descendientes(configuracion).OfType<TabControl>()).SelectedIndex = 2;
                 var aprobar = Descendientes(configuracion).OfType<Button>().Single(boton => boton.Text == "Aprobar");
                 Assert.True(aprobar.Enabled);
                 Capturar(configuracion, "sugerencias-admin");
@@ -347,7 +347,8 @@ public sealed partial class Ventanas
                     var paneles = Descendientes(comparacion).OfType<TextBox>().ToArray();
                     comparacionVerificada = paneles.Length == 2 && paneles.All(panel => panel.ReadOnly) &&
                         paneles.Any(panel => panel.Text.Contains("Diagnóstico anterior ficticio")) &&
-                        paneles.Any(panel => panel.Text.Contains("Borrador actual"));
+                        paneles.Any(panel => panel.Text.Contains("Borrador actual")) &&
+                        comparacion.ActiveControl?.Text == "Volver al historial";
                     Capturar(comparacion, "comparacion-historias");
                     comparacion.Close();
                 };

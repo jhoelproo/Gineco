@@ -89,7 +89,7 @@ public sealed partial class Ventanas
             transporte.Estado = HttpStatusCode.ServiceUnavailable;
             var intento = ventana.Recibir();
             EsperarHasta(() => intento.IsCompleted);
-            Assert.True(TieneTexto($"Admisión sin conexión · Reintentando · Última sincronización {Clinica.HoraHospital(marca):dd/MM/yyyy HH:mm}"));
+            Assert.True(TieneTexto($"Admisión sin conexión · Reintentando · Última sincronización {Clinica.FechaPresentada(Clinica.HoraHospital(marca))}"));
             Assert.Equal(marca, archivo.UltimaSincronizacion());
             Assert.Equal(3, lista.Rows.Count);
             Assert.Equal(3, archivo.Bandeja().Count);
