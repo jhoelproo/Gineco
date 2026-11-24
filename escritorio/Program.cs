@@ -240,16 +240,14 @@ internal sealed partial class Historias : Form
         pie.Controls.Add(abrir);
         pie.Controls.Add(imprimir);
         pie.Controls.Add(exportar);
-        if (usuario.Administrador)
-        {
-            pie.Controls.Add(retirar);
-            retirar.Click += (_, _) => RetirarSeleccion();
-        }
+        pie.Controls.Add(retirar);
+        retirar.Click += (_, _) => RetirarSeleccion();
         if (actualizaciones is not null) PrepararActualizaciones(pie, actualizaciones);
         abrir.Click += (_, _) => AbrirSeleccion();
         imprimir.Click += (_, _) => { if (Seleccion?.Atencion is { } a) Imprimir(a); };
         exportar.Click += (_, _) => { if (Seleccion?.Atencion is { } a) Exportar(a); };
         ConfigurarLista();
+        PrepararMenuHistoria();
         lista.CellDoubleClick += (_, evento) => { if (evento.RowIndex >= 0) AbrirSeleccion(); };
         lista.KeyDown += AbrirConTeclado;
         lista.SelectionChanged += (_, _) => ActualizarAcciones();
@@ -307,7 +305,7 @@ internal sealed partial class Historias : Form
         abrir.Enabled = Seleccion is { } fila && fila.Admision?.SoloRemota != true;
         exportar.Enabled = Seleccion?.Atencion is not null;
         imprimir.Enabled = Seleccion?.Atencion?.Finalizada == true;
-        retirar.Enabled = usuario.Administrador && Seleccion is not null;
+        retirar.Enabled = Seleccion is not null;
     }
 
     private void AbrirSeleccion()
@@ -331,13 +329,30 @@ internal sealed partial class Historias : Form
             "Eliminar del listado", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
         try
         {
-            archivo.Retirar(usuario, fila.Atencion?.Id, fila.Admision?.Id);
-            Recargar();
+            if (AutorizarYRetirar(fila)) Recargar();
         }
         catch (Exception error) when (error is SqliteException or InvalidOperationException or ArgumentException)
         {
             MessageBox.Show(this, "No se pudo retirar la atención. Comprueba que siga en el listado.", Text);
         }
+    }
+
+    private bool AutorizarYRetirar(FilaHistoria fila)
+    {
+        long? historia = fila.Atencion?.Id;
+        Guid? derivacion = fila.Admision?.Id;
+        if (cuentasCompartidas is { } cuentas)
+        {
+            if (GestionarCuentaCompartida.Autorizar(this, cuentas) is not { } autorizacion) return false;
+            archivo.Retirar(usuario, historia, derivacion, autorizacion);
+        }
+        else
+        {
+            using var permiso = new AutorizarRetiroLocal(archivo);
+            if (permiso.ShowDialog(this) != DialogResult.OK || permiso.Administrador is not { } administrador) return false;
+            archivo.Retirar(administrador, historia, derivacion);
+        }
+        return true;
     }
 
     private void Editar(Atencion? atencion, string? revisarCampo = null)

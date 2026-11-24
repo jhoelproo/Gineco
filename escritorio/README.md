@@ -84,6 +84,8 @@ Para compartir los retiros de visitas de Admisión, aplica [la migración de ret
 
 Gineco abre en **Pendientes**. Selecciona **En atención** para retomar un borrador, **Finalizadas** para ver historias listas para imprimir o **Enviadas a impresión** para revisar las que Windows aceptó en la cola. **Todas** permite buscar por nombre o cédula sin elegir un estado. Los contadores muestran el total de cada grupo.
 
+Haz clic derecho sobre una fila para abrir la historia, imprimirla o exportar el PDF según su estado. Para quitar una atención, elige **Eliminar del listado**, confirma y solicita la contraseña de una cuenta de administrador. La autorización se usa para ese retiro. La historia y su registro de auditoría se conservan.
+
 Si la búsqueda queda vacía con un filtro activo, pulsa **Buscar en todas**. En ventanas reducidas, el editor muestra un selector de secciones arriba del formulario. El estado junto al selector de perfil indica cuál se aplicó y si hay otro por aplicar. Desde la bandeja, **Cambiar médico** vuelve a solicitar la cuenta de acceso.
 
 La última sincronización muestra la fecha y hora del hospital. Si se pierde la conexión, Gineco conserva en pantalla el listado disponible y esa hora. Cuando recibe un lote completo, muestra **Sincronizando listado…** hasta que termine de ponerse al día.

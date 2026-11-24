@@ -6,6 +6,35 @@ internal sealed partial class Historias
     private List<FilaHistoria> filasBandeja = [];
     private EstadoConsulta? estadoSeleccionado = EstadoConsulta.Pendiente;
     private readonly Button buscarEnTodas = Estilo.Boton("Buscar en todas");
+    private readonly ContextMenuStrip menuHistoria = new() { AccessibleName = "Acciones de la historia" };
+
+    private void PrepararMenuHistoria()
+    {
+        AgregarOpcionDeHistoria(abrir);
+        AgregarOpcionDeHistoria(imprimir);
+        AgregarOpcionDeHistoria(exportar);
+        menuHistoria.Items.Add(new ToolStripSeparator());
+        AgregarOpcionDeHistoria(retirar);
+
+        lista.CellContextMenuStripNeeded += (_, evento) => evento.ContextMenuStrip = evento.RowIndex >= 0 ? menuHistoria : null;
+        lista.CellMouseDown += SeleccionarFilaConClicDerecho;
+        menuHistoria.Opening += (_, _) => ActualizarAcciones();
+        Disposed += (_, _) => menuHistoria.Dispose();
+    }
+
+    private void AgregarOpcionDeHistoria(Button boton)
+    {
+        var opcion = new ToolStripMenuItem(boton.Text) { Enabled = boton.Enabled };
+        boton.EnabledChanged += (_, _) => opcion.Enabled = boton.Enabled;
+        opcion.Click += (_, _) => boton.PerformClick();
+        menuHistoria.Items.Add(opcion);
+    }
+
+    private void SeleccionarFilaConClicDerecho(object? remitente, DataGridViewCellMouseEventArgs evento)
+    {
+        if (evento.Button != MouseButtons.Right || evento.RowIndex < 0) return;
+        lista.CurrentCell = lista.Rows[evento.RowIndex].Cells[Math.Max(0, evento.ColumnIndex)];
+    }
 
     private Control CrearBarraSuperior(Control acciones, Button? configuracion)
     {
@@ -154,6 +183,7 @@ internal sealed partial class Historias
 
     private void Filtrar()
     {
+        menuHistoria.Close();
         var elegida = Seleccion;
         var consulta = buscar.Text.Trim();
         string cedula = consulta.Replace("-", "").Replace(" ", "");

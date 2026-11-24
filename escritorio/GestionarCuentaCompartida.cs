@@ -21,7 +21,7 @@ internal static class GestionarCuentaCompartida
         return recuperacion.ShowDialog(origen) == DialogResult.OK;
     }
 
-    private static SesionCompartida? Autorizar(Form origen, CuentasCompartidas cuentas)
+    internal static SesionCompartida? Autorizar(Form origen, CuentasCompartidas cuentas)
     {
         using var acceso = new AccesoCompartido(cuentas);
         return acceso.ShowDialog(origen) == DialogResult.OK ? acceso.Sesion : null;

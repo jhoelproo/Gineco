@@ -19,14 +19,26 @@ internal sealed partial class Archivo
         orden.ExecuteNonQuery();
     }
 
-    internal void Retirar(Medico administrador, long? historia, Guid? derivacion)
+    internal void Retirar(Medico usuario, long? historia, Guid? derivacion, SesionCompartida? autorizacion = null)
     {
         using var tx = conexion.BeginTransaction();
-        ExigirAdministrador(administrador, tx);
+        var administrador = AdministradorDelRetiro(usuario, autorizacion, tx);
         if (derivacion is { } id) RetirarDerivacion(administrador, id, tx);
         else if (historia is { } numero) RetirarHistoria(administrador, numero, tx);
         else throw new ArgumentException("Selecciona la atención que quieres retirar.");
         tx.Commit();
+    }
+
+    private Medico AdministradorDelRetiro(Medico usuario, SesionCompartida? autorizacion, SqliteTransaction tx)
+    {
+        if (autorizacion is null)
+        {
+            ExigirAdministrador(usuario, tx);
+            return usuario;
+        }
+        if (!ReferenceEquals(sesionCompartida, usuario) || !autorizacion.Medico.Administrador)
+            throw new InvalidOperationException("Se necesita la autorización de un administrador para retirar una atención.");
+        return autorizacion.Medico;
     }
 
     private void RetirarDerivacion(Medico administrador, Guid id, SqliteTransaction tx)
